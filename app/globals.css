@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 158 64% 16%; /* Emerald 900 */
+    --primary-foreground: 210 40% 98%;
+    --gold: 38 92% 50%;
+  }
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
