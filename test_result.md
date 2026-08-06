@@ -98,10 +98,10 @@
 
 
 
-## user_problem_statement: Build a responsive, SEO-first, premium real-estate corporate website for AuraCorp Developers (brand palette: premium green primary, gold accents, white background). Verify that the page loads correctly, all navigation tabs (Home, Projects, Delivered, Ongoing, Soft Launch, About, Team, News, CMS Panel, Contact) work smoothly, project detail modal opens, compare tool works, and enquiry popup functions correctly.
+## user_problem_statement: Phase 2 — Real Gillco Group website (data from gillcogroup.com). Next.js + MongoDB backend with in-app CMS. Real projects, RERA, team, news, contact seeded. PDF export for compare tool. Admin panel protected by simple password.
 
 ## backend:
-  - task: "API endpoints for projects and inquiries"
+  - task: "Gillco CMS APIs — settings, projects CRUD, enquiries, news, team, admin login"
     implemented: true
     working: true
     file: "app/api/[[...path]]/route.js"
@@ -109,9 +109,12 @@
     priority: "high"
     needs_retesting: false
     status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Rewrote backend with seed data from gillcogroup.com. Endpoints: GET/PUT /api/settings, GET/POST /api/projects, GET/PUT/DELETE /api/projects/:id, POST/GET /api/enquiries, GET/POST/DELETE /api/news, GET /api/team, POST /api/admin/login. Seeds 8 real projects (Meraqui, Parkhills, Palms, Villas, Floors, Towers, Heights, Industrial Park), founders + MD in team, corporate announcements in news. Admin password: gillco2025 (env ADMIN_PASSWORD)."
         - working: true
           agent: "testing"
-          comment: "Backend API routes for projects, inquiries, and CMS management verified working."
+          comment: "Comprehensive backend API testing completed successfully. All 12 test scenarios passed: (1) GET /api/settings returns Gillco Group settings with brandName, phone, whatsapp, email, address, stats, popup, hero slides ✅ (2) PUT /api/settings updates tagline and persists correctly ✅ (3) GET /api/projects returns all 8 seeded projects (meraqui, parkhills, industrial-park, villas, floors, towers, heights, palms) with complete fields ✅ (4) GET /api/projects/meraqui returns full Meraqui project (444 units, 12 acres, Sector 126 Mohali, status upcoming) ✅ (5) PUT /api/projects/meraqui updates constructionPercent and persists ✅ (6) POST /api/enquiries with valid data creates enquiry with id and createdAt ✅ (7) POST /api/enquiries with missing name/phone returns 400 ✅ (8) GET /api/enquiries returns created enquiry ✅ (9) GET /api/news returns 6 news items sorted by date desc ✅ (10) GET /api/team returns 3 team members (Ranjit Singh Gill, Paramjit Gill, Tejpreet Singh Gill) ✅ (11) POST /api/admin/login returns 200 with correct password (gillco2025) and 401 with wrong password ✅ (12) GET /api/nonexistent returns 404 ✅. MongoDB persistence verified by hitting each GET twice after PUT operations. No MongoDB _id field leaks detected in any response. All endpoints return proper status codes and data structures."
 
 ## frontend:
   - task: "Navigation tabs (Home, Projects, Delivered, Ongoing, Soft Launch, About, Team, News, CMS Panel, Contact)"
@@ -157,11 +160,14 @@
   run_ui: true
 
 ## test_plan:
-  current_focus: []
+  current_focus:
+    - "Gillco CMS APIs — settings, projects CRUD, enquiries, news, team, admin login"
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
 ## agent_communication:
     - agent: "testing"
       message: "Tested all navigation tabs, project detail modal, comparison tool, enquiry popup, and CMS panel via Playwright. Everything is fully functional and rendered with the premium green and gold corporate palette."
+    - agent: "testing"
+      message: "Backend API testing complete. All 12 test scenarios passed successfully. Tested: settings GET/PUT, projects CRUD (all 8 seeded projects verified), enquiries POST/GET with validation, news GET (6 items sorted), team GET (3 members), admin login with correct/wrong password, 404 handling. MongoDB persistence verified, no _id leaks. Backend is fully functional and ready for production."

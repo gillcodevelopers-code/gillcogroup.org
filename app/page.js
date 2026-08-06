@@ -1,1488 +1,1387 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Building2, MapPin, Calendar, ShieldCheck, CheckCircle2, Clock, Sparkles, 
-  ChevronRight, Phone, Mail, FileText, Download, Eye, ArrowRight, X, 
-  Search, Filter, Plus, Check, Star, Award, Users, Globe, Share2, 
-  Printer, MessageSquare, Menu, AlertCircle, RefreshCw, BarChart3, Settings,
-  SlidersHorizontal, ExternalLink, ThumbsUp, Layers, HelpCircle
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { toast } from 'sonner';
+import {
+  Phone, Mail, MapPin, MessageCircle, Menu, X, ChevronLeft, ChevronRight,
+  Search, ArrowRight, Award, Building2, Users, LandPlot, Home as HomeIcon,
+  Calendar, CheckCircle2, Clock, Sparkles, Download, Printer, Trash2, Plus,
+  Edit3, Save, LogIn, LogOut, Filter, Star, ExternalLink, ShieldCheck,
 } from 'lucide-react';
 
-// --- MOCK DATA ---
-const INITIAL_PROJECTS = [
-  {
-    id: 'aura-grandeur',
-    name: 'Aura Grandeur Residences',
-    tagline: 'Ultra-Luxury Skyline Penthouses & 4/5 BHK Mansions',
-    category: 'Ongoing',
-    statusBadge: 'Ongoing',
-    statusColor: 'bg-amber-500 text-white',
-    location: 'Bandra West, Mumbai',
-    priceRange: '₹8.5 Cr - ₹24 Cr',
-    unitMix: '4 & 5 BHK Sky Mansions',
-    reraNumber: 'P51800029841',
-    reraStatus: 'Verified & Active',
-    reraTimestamp: 'Updated 2 weeks ago',
-    completionPct: 78,
-    launchDate: 'Q1 2023',
-    handoverDate: 'Q4 2026',
-    acres: '4.5 Acres',
-    unitsDelivered: '180 Units',
-    image: 'https://images.pexels.com/photos/13416122/pexels-photo-13416122.jpeg',
-    gallery: [
-      'https://images.pexels.com/photos/13416122/pexels-photo-13416122.jpeg',
-      'https://images.pexels.com/photos/33902818/pexels-photo-33902818.jpeg',
-      'https://images.pexels.com/photos/37495707/pexels-photo-37495707.jpeg'
-    ],
-    description: 'Aura Grandeur is an architectural masterpiece offering panoramic sea views, private infinity pools on every deck, and world-class concierge services managed by international hospitality experts.',
-    amenities: ['Skyline Infinity Pool', 'Helipad Access', 'Private Elevator', 'Valet & Concierge', 'State-of-the-Art Spa', 'Wine Cellar Lounge'],
-    milestones: [
-      { title: 'Foundation & Substructure', date: 'June 2023', completed: true },
-      { title: 'Superstructure 25th Floor', date: 'January 2025', completed: true },
-      { title: 'Facade & Glazing Installation', date: 'October 2025', completed: true },
-      { title: 'Interior Fit-outs & MEP', date: 'July 2026', completed: false },
-      { title: 'Final Handover & OC', date: 'December 2026', completed: false },
-    ],
-    progressFeed: [
-      { date: '10 June 2026', note: 'Facade glazing completed on the 32nd floor tower A.', img: 'https://images.pexels.com/photos/37495707/pexels-photo-37495707.jpeg' },
-      { date: '22 May 2026', note: 'Clubhouse interior marble cladding initiated.', img: 'https://images.pexels.com/photos/33902818/pexels-photo-33902818.jpeg' }
-    ]
-  },
-  {
-    id: 'aura-forest-woods',
-    name: 'Aura Forest Woods',
-    tagline: 'Eco-Luxury Biophilic Villas & 3/4 BHK Apartments',
-    category: 'Delivered',
-    statusBadge: 'Delivered',
-    statusColor: 'bg-emerald-700 text-white',
-    location: 'Whitefield, Bangalore',
-    priceRange: '₹2.8 Cr - ₹6.5 Cr',
-    unitMix: '3, 4 BHK & Garden Villas',
-    reraNumber: 'PRM/KA/RERA/1251/308/PR/201215/003810',
-    reraStatus: 'Completed & OC Received',
-    reraTimestamp: 'Verified 1 month ago',
-    completionPct: 100,
-    launchDate: 'Q2 2021',
-    handoverDate: 'Q1 2025',
-    acres: '18 Acres',
-    unitsDelivered: '420 Units',
-    image: 'https://images.pexels.com/photos/28567004/pexels-photo-28567004.jpeg',
-    gallery: [
-      'https://images.pexels.com/photos/28567004/pexels-photo-28567004.jpeg',
-      'https://images.pexels.com/photos/33634443/pexels-photo-33634443.jpeg'
-    ],
-    description: 'Designed around 500 preserved mature trees, Aura Forest Woods integrates biophilic design with net-zero carbon infrastructure, organic orchards, and Olympic-length bio-pools.',
-    amenities: ['Bio-Pools', 'Organic Farming Plots', 'Solar Micro-Grid', 'Equestrian Stables', 'Organic Cafe', 'Tennis Academy'],
-    milestones: [
-      { title: 'Land Acquisition & Zoning', date: 'March 2021', completed: true },
-      { title: 'Phase 1 Villa Structures', date: 'August 2022', completed: true },
-      { title: 'Central Forest Park Development', date: 'May 2023', completed: true },
-      { title: 'Occupancy Certificate Received', date: 'January 2025', completed: true },
-    ],
-    progressFeed: [
-      { date: '15 Jan 2025', note: 'All 420 families successfully handed over keys.', img: 'https://images.pexels.com/photos/28567004/pexels-photo-28567004.jpeg' }
-    ]
-  },
-  {
-    id: 'aura-sovereign',
-    name: 'Aura Sovereign Crown',
-    tagline: 'Iconic Financial District Mixed-Use Towers',
-    category: 'Upcoming',
-    statusBadge: 'Soft Launch',
-    statusColor: 'bg-blue-600 text-white',
-    location: 'Gachibowli, Hyderabad',
-    priceRange: '₹4.2 Cr - ₹12 Cr',
-    unitMix: '3 & 4 BHK Smart Residences',
-    reraNumber: 'P02400005421',
-    reraStatus: 'Approved - Priority Booking Open',
-    reraTimestamp: 'Updated 3 days ago',
-    completionPct: 15,
-    launchDate: 'Q3 2026',
-    handoverDate: 'Q2 2029',
-    acres: '12 Acres',
-    unitsDelivered: '650 Units',
-    image: 'https://images.pexels.com/photos/37495707/pexels-photo-37495707.jpeg',
-    gallery: [
-      'https://images.pexels.com/photos/37495707/pexels-photo-37495707.jpeg',
-      'https://images.pexels.com/photos/13416122/pexels-photo-13416122.jpeg'
-    ],
-    description: 'Aura Sovereign Crown brings futuristic smart home automation, high-speed elevators, and a 100,000 sq.ft clubhouse with rooftop dining to Hyderabad financial hub.',
-    amenities: ['100k sq.ft Clubhouse', 'Co-working Suites', 'Rooftop Helipad', 'AI Smart Security', 'Olympic Indoor Pool'],
-    milestones: [
-      { title: 'Soil Testing & Approvals', date: 'January 2026', completed: true },
-      { title: 'Soft Launch & VIP Pre-booking', date: 'July 2026', completed: true },
-      { title: 'Excavation & Raft Foundation', date: 'October 2026', completed: false },
-      { title: 'Structural Completion', date: 'December 2028', completed: false },
-    ],
-    progressFeed: [
-      { date: '01 July 2026', note: 'VIP Soft Launch event commenced with 250+ EOI bookings.', img: 'https://images.pexels.com/photos/37495707/pexels-photo-37495707.jpeg' }
-    ]
-  },
-  {
-    id: 'aura-serenity',
-    name: 'Aura Serenity Bay',
-    tagline: 'Waterfront Resort Living & Luxury Suites',
-    category: 'Delivered',
-    statusBadge: 'Delivered',
-    statusColor: 'bg-emerald-700 text-white',
-    location: 'ECR Coast Road, Chennai',
-    priceRange: '₹3.5 Cr - ₹9.0 Cr',
-    unitMix: '3 & 4 BHK Beachfront Duplexes',
-    reraNumber: 'TN/01/Building/0198/2022',
-    reraStatus: 'Completed & Handed Over',
-    reraTimestamp: 'Verified 6 months ago',
-    completionPct: 100,
-    launchDate: 'Q1 2020',
-    handoverDate: 'Q4 2023',
-    acres: '10 Acres',
-    unitsDelivered: '150 Units',
-    image: 'https://images.pexels.com/photos/33634443/pexels-photo-33634443.jpeg',
-    gallery: [
-      'https://images.pexels.com/photos/33634443/pexels-photo-33634443.jpeg',
-      'https://images.pexels.com/photos/28567004/pexels-photo-28567004.jpeg'
-    ],
-    description: 'Experience pristine private beach access, direct ocean vistas, and resort-grade amenities at Aura Serenity Bay, crafted for discerning coastal connoisseurs.',
-    amenities: ['Private Beach', 'Yacht Marina Deck', 'Seaside Spa', 'Infinity Saltwater Pool', 'Private Dining Pavilion'],
-    milestones: [
-      { title: 'Coastal Clearance & Permits', date: 'May 2020', completed: true },
-      { title: 'Structural Framing', date: 'December 2021', completed: true },
-      { title: 'Handover & Resort Launch', date: 'November 2023', completed: true },
-    ],
-    progressFeed: [
-      { date: '15 Dec 2023', note: 'Property management taken over by Aura Hospitality.', img: 'https://images.pexels.com/photos/33634443/pexels-photo-33634443.jpeg' }
-    ]
-  }
-];
+/* ---------- helpers ---------- */
+const api = async (path, opts = {}) => {
+  const res = await fetch(`/api${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) throw new Error((await res.json()).error || 'API error');
+  return res.json();
+};
 
-export default function RealEstateApp() {
-  const [projects, setProjects] = useState(INITIAL_PROJECTS);
-  const [activeTab, setActiveTab] = useState('home'); // home, projects, compare, delivered, ongoing, upcoming, about, team, news, cms, contact
-  const [selectedProject, setSelectedProject] = useState(null); // for project detail modal
-  const [compareList, setCompareList] = useState([]); // list of project IDs for comparison
-  const [showCompareModal, setShowCompareModal] = useState(false);
-  const [showPopup, setShowPopup] = useState(false);
-  const [showEnquireModal, setShowEnquireModal] = useState(false);
-  const [enquireProjectName, setEnquireProjectName] = useState('General Enquiry');
-  const [toastMessage, setToastMessage] = useState(null);
-  
-  // Filters for projects
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Chat drawer
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { sender: 'bot', text: 'Welcome to AuraCorp Developers! How can I assist you with our luxury properties today?' }
-  ]);
-  const [chatInput, setChatInput] = useState('');
+const STATUS_MAP = {
+  delivered: { label: 'Delivered', color: 'bg-emerald-700 text-white', ring: 'ring-emerald-700' },
+  ongoing: { label: 'Ongoing', color: 'bg-orange-500 text-white', ring: 'ring-orange-500' },
+  upcoming: { label: 'New Launch', color: 'bg-blue-600 text-white', ring: 'ring-blue-600' },
+};
 
-  // CMS state for editing
-  const [cmsProjects, setCmsProjects] = useState(INITIAL_PROJECTS);
-  const [popupDelaySec, setPopupDelaySec] = useState(5);
-  const [popupEnabled, setPopupEnabled] = useState(true);
+const GILLCO_LOGO = 'https://www.gillcogroup.com/gillco-logo-original.png';
+const GILLCO_LOGO_WHITE = 'https://www.gillcogroup.com/gillco-logo-white.png';
 
-  // Trigger popup after delay on initial load
+/* ============================ MAIN APP ============================ */
+function App() {
+  const [view, setView] = useState('home'); // home | projects | about | team | news | contact | admin
+  const [settings, setSettings] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [news, setNews] = useState([]);
+  const [team, setTeam] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [activeProject, setActiveProject] = useState(null); // project detail modal
+  const [compare, setCompare] = useState([]); // ids
+  const [showCompare, setShowCompare] = useState(false);
+  const [showEnquiry, setShowEnquiry] = useState(false);
+  const [enquiryPrefill, setEnquiryPrefill] = useState({});
+  const [popupShown, setPopupShown] = useState(false);
+
+  const [mobileNav, setMobileNav] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [search, setSearch] = useState('');
+
+  /* -------- load data -------- */
   useEffect(() => {
-    if (popupEnabled) {
-      const timer = setTimeout(() => {
-        const suppressed = sessionStorage.getItem('auracorp_popup_suppressed');
-        if (!suppressed) {
-          setShowPopup(true);
-        }
-      }, popupDelaySec * 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [popupEnabled, popupDelaySec]);
+    (async () => {
+      try {
+        const [s, p, n, t] = await Promise.all([
+          api('/settings'),
+          api('/projects'),
+          api('/news'),
+          api('/team'),
+        ]);
+        setSettings(s);
+        setProjects(p);
+        setNews(n);
+        setTeam(t);
+      } catch (e) {
+        console.error(e);
+        toast.error('Failed to load site content');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
+  /* -------- popup enquiry (configurable) -------- */
+  useEffect(() => {
+    if (!settings?.popup?.enabled || popupShown) return;
+    const cookieName = 'gillco_popup_seen';
+    const seen = document.cookie.includes(`${cookieName}=1`);
+    if (seen) return;
+    const t = setTimeout(() => {
+      setShowEnquiry(true);
+      setEnquiryPrefill({ type: 'popup' });
+      setPopupShown(true);
+      const hrs = settings.popup.cookieHours || 24;
+      const d = new Date();
+      d.setTime(d.getTime() + hrs * 60 * 60 * 1000);
+      document.cookie = `${cookieName}=1; expires=${d.toUTCString()}; path=/`;
+    }, (settings.popup.delaySeconds || 6) * 1000);
+    return () => clearTimeout(t);
+  }, [settings, popupShown]);
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    const newMsg = chatInput;
-    setChatMessages(prev => [...prev, { sender: 'user', text: newMsg }]);
-    setChatInput('');
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, { sender: 'bot', text: 'Thank you for your query. Our senior sales consultant will connect with you via phone/WhatsApp within 15 minutes.' }]);
-    }, 1000);
-  };
+  const filtered = useMemo(() => {
+    return projects.filter(p => {
+      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
+      if (search && !`${p.name} ${p.location}`.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [projects, statusFilter, categoryFilter, search]);
 
   const toggleCompare = (id) => {
-    if (compareList.includes(id)) {
-      setCompareList(compareList.filter(item => item !== id));
-      showToast('Project removed from comparison');
-    } else {
-      if (compareList.length >= 4) {
-        showToast('You can compare a maximum of 4 projects simultaneously.');
-        return;
+    setCompare(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 4) {
+        toast.warning('You can compare up to 4 projects');
+        return prev;
       }
-      setCompareList([...compareList, id]);
-      showToast('Project added to comparison list');
-    }
+      return [...prev, id];
+    });
   };
 
-  // Filtered projects
-  const filteredProjects = projects.filter(p => {
-    const matchesCategory = categoryFilter === 'All' || p.category === categoryFilter;
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.unitMix.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const openEnquiry = (prefill = {}) => {
+    setEnquiryPrefill(prefill);
+    setShowEnquiry(true);
+  };
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
-      
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-emerald-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-3 border border-amber-500 animate-bounce">
-          <Sparkles className="w-5 h-5 text-amber-400" />
-          <span className="font-medium text-sm">{toastMessage}</span>
-        </div>
-      )}
+  const goTo = (v) => {
+    setView(v);
+    setMobileNav(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-      {/* TOP HEADER BAR */}
-      <div className="bg-emerald-950 text-emerald-100 text-xs py-2 px-4 border-b border-emerald-900">
-        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-          <div className="flex items-center space-x-4">
-            <span className="flex items-center"><ShieldCheck className="w-4 h-4 mr-1 text-amber-400" /> RERA Registered Developer</span>
-            <span className="hidden md:inline">|</span>
-            <span className="hidden md:inline">ISO 9001:2015 & ISO 14001:2015 Certified</span>
-          </div>
-          <div className="flex items-center space-x-6">
-            <a href="tel:+918005559999" className="flex items-center hover:text-amber-400 transition">
-              <Phone className="w-3.5 h-3.5 mr-1.5 text-amber-400" /> +91 800 555 9999
-            </a>
-            <button onClick={() => { setActiveTab('contact'); }} className="hover:text-amber-400 transition font-semibold">
-              Client Portal / Enquire
-            </button>
-          </div>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gillco-cream">
+        <div className="text-center">
+          <img src={GILLCO_LOGO} alt="Gillco" className="h-16 mx-auto mb-4 animate-pulse" />
+          <p className="text-gillco-green font-medium">Loading Gillco Group…</p>
         </div>
       </div>
+    );
+  }
 
-      {/* MAIN NAVIGATION */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
-        <div className="container mx-auto px-4 h-20 flex items-center justify-between">
-          
-          {/* Logo */}
-          <div onClick={() => setActiveTab('home')} className="cursor-pointer flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-900 flex items-center justify-center text-amber-400 shadow-md">
-              <Building2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="font-cinzel text-xl font-bold tracking-wider text-emerald-950">AURACORP</h1>
-              <p className="text-[10px] tracking-widest text-amber-600 font-semibold uppercase">Luxury Developers</p>
-            </div>
-          </div>
+  return (
+    <div className="min-h-screen bg-white">
+      <Header settings={settings} view={view} goTo={goTo} mobileNav={mobileNav} setMobileNav={setMobileNav} onEnquire={() => openEnquiry({ type: 'header' })} />
 
-          {/* Desktop Nav Links */}
-          <nav className="hidden lg:flex items-center space-x-6 text-sm font-semibold text-slate-700">
-            <button onClick={() => setActiveTab('home')} className={`transition hover:text-emerald-800 ${activeTab === 'home' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>Home</button>
-            <button onClick={() => setActiveTab('projects')} className={`transition hover:text-emerald-800 ${activeTab === 'projects' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>All Projects</button>
-            <button onClick={() => setActiveTab('delivered')} className={`transition hover:text-emerald-800 ${activeTab === 'delivered' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>Delivered</button>
-            <button onClick={() => setActiveTab('ongoing')} className={`transition hover:text-emerald-800 ${activeTab === 'ongoing' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>Ongoing</button>
-            <button onClick={() => setActiveTab('upcoming')} className={`transition hover:text-emerald-800 ${activeTab === 'upcoming' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>Soft Launch</button>
-            <button onClick={() => setActiveTab('about')} className={`transition hover:text-emerald-800 ${activeTab === 'about' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>About Us</button>
-            <button onClick={() => setActiveTab('team')} className={`transition hover:text-emerald-800 ${activeTab === 'team' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>Leadership</button>
-            <button onClick={() => setActiveTab('news')} className={`transition hover:text-emerald-800 ${activeTab === 'news' ? 'text-emerald-800 border-b-2 border-amber-500 pb-1' : ''}`}>News & Media</button>
-            <button onClick={() => setActiveTab('cms')} className={`transition hover:text-emerald-800 text-amber-700 flex items-center ${activeTab === 'cms' ? 'border-b-2 border-amber-500 pb-1' : ''}`}><Settings className="w-3.5 h-3.5 mr-1" /> CMS Panel</button>
-          </nav>
-
-          {/* Action buttons */}
-          <div className="flex items-center space-x-3">
-            {compareList.length > 0 && (
-              <button 
-                onClick={() => setShowCompareModal(true)}
-                className="relative bg-amber-100 text-amber-900 border border-amber-400 px-3 py-2 rounded-lg text-xs font-bold flex items-center hover:bg-amber-200 transition"
-              >
-                <SlidersHorizontal className="w-4 h-4 mr-1" />
-                Compare ({compareList.length})
-              </button>
-            )}
-            <button 
-              onClick={() => { setEnquireProjectName('General Enquiry'); setShowEnquireModal(true); }}
-              className="bg-emerald-900 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition shadow-md flex items-center"
-            >
-              <Sparkles className="w-4 h-4 mr-2 text-amber-400" />
-              Enquire Now
-            </button>
-          </div>
-
-        </div>
-      </header>
-
-      {/* ========================================================== */}
-      {/* 1. HOME TAB                                                 */}
-      {/* ========================================================== */}
-      {activeTab === 'home' && (
-        <main className="flex-1">
-          {/* Hero Section */}
-          <section className="relative bg-emerald-950 text-white min-h-[620px] flex items-center overflow-hidden">
-            <div className="absolute inset-0 z-0 opacity-40">
-              <img 
-                src="https://images.pexels.com/photos/13416122/pexels-photo-13416122.jpeg" 
-                alt="Luxury Township" 
-                className="w-full h-full object-cover scale-105 animate-pulse duration-1000"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-950 via-emerald-950/80 to-transparent"></div>
-            </div>
-
-            <div className="container mx-auto px-4 z-10 py-20">
-              <div className="max-w-3xl">
-                <div className="inline-flex items-center space-x-2 bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 rounded-full text-amber-300 text-xs font-bold tracking-wide uppercase mb-6">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Award-Winning Luxury Real Estate Developer</span>
-                </div>
-                <h1 className="font-cinzel text-4xl md:text-6xl font-bold tracking-tight mb-6 leading-tight">
-                  Crafting Timeless <span className="text-amber-400">Architectural Masterpieces</span>
-                </h1>
-                <p className="text-slate-200 text-lg md:text-xl mb-8 leading-relaxed">
-                  Experience unparalleled elegance, sustainable biophilic design, and ultra-luxury residences across prime metropolitan hubs.
-                </p>
-                <div className="flex flex-wrap gap-4">
-                  <button 
-                    onClick={() => setActiveTab('projects')}
-                    className="bg-amber-500 hover:bg-amber-600 text-emerald-950 font-bold px-8 py-4 rounded-xl text-base shadow-xl flex items-center transition transform hover:-translate-y-0.5"
-                  >
-                    View All Projects <ChevronRight className="w-5 h-5 ml-2" />
-                  </button>
-                  <button 
-                    onClick={() => { setEnquireProjectName('Schedule Site Visit'); setShowEnquireModal(true); }}
-                    className="bg-white/10 hover:bg-white/20 border border-white/30 text-white font-semibold px-8 py-4 rounded-xl text-base backdrop-blur-sm transition"
-                  >
-                    Schedule Site Visit
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Quick Stats Bar */}
-          <section className="bg-amber-500 text-emerald-950 py-8 shadow-inner">
-            <div className="container mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-              <div>
-                <p className="font-cinzel text-3xl md:text-4xl font-ext500 font-bold">35+</p>
-                <p className="text-xs md:text-sm font-semibold uppercase tracking-wider mt-1">Years of Excellence</p>
-              </div>
-              <div>
-                <p className="font-cinzel text-3xl md:text-4xl font-ext500 font-bold">12M+</p>
-                <p className="text-xs md:text-sm font-semibold uppercase tracking-wider mt-1">Sq.Ft Delivered</p>
-              </div>
-              <div>
-                <p className="font-cinzel text-3xl md:text-4xl font-ext500 font-bold">18,000+</p>
-                <p className="text-xs md:text-sm font-semibold uppercase tracking-wider mt-1">Happy Families</p>
-              </div>
-              <div>
-                <p className="font-cinzel text-3xl md:text-4xl font-ext500 font-bold">42</p>
-                <p className="text-xs md:text-sm font-semibold uppercase tracking-wider mt-1">Global Awards Won</p>
-              </div>
-            </div>
-          </section>
-
-          {/* Featured Projects Carousel / Grid */}
-          <section className="py-20 container mx-auto px-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12">
-              <div>
-                <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Portfolio Showcase</span>
-                <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Featured Townships & Residences</h2>
-              </div>
-              <button 
-                onClick={() => setActiveTab('projects')}
-                className="mt-4 md:mt-0 text-emerald-800 hover:text-amber-600 font-semibold text-sm flex items-center transition"
-              >
-                Browse Complete Catalog <ArrowRight className="w-4 h-4 ml-1.5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {projects.slice(0, 3).map((project) => (
-                <div key={project.id} className="bg-white rounded-2xl overflow-hidden shadow-lg border border-slate-200 hover:shadow-2xl transition duration-300 flex flex-col group">
-                  <div className="relative h-64 overflow-hidden">
-                    <img 
-                      src={project.image} 
-                      alt={project.name} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                    />
-                    <div className="absolute top-4 left-4">
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold shadow ${project.statusColor}`}>
-                        {project.statusBadge}
-                      </span>
-                    </div>
-                    <div className="absolute top-4 right-4">
-                      <button 
-                        onClick={() => toggleCompare(project.id)}
-                        className={`p-2 rounded-full shadow ${compareList.includes(project.id) ? 'bg-amber-500 text-white' : 'bg-white/80 text-slate-700 hover:bg-white'} transition`}
-                        title="Compare Project"
-                      >
-                        <SlidersHorizontal className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-6 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center text-xs text-slate-500 mb-2">
-                        <MapPin className="w-3.5 h-3.5 text-amber-600 mr-1" /> {project.location}
-                      </div>
-                      <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-1">{project.name}</h3>
-                      <p className="text-xs text-slate-600 mb-4">{project.tagline}</p>
-                      
-                      {/* RERA Badge on front card */}
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 mb-4 text-xs">
-                        <div className="flex items-center justify-between text-emerald-950 font-semibold mb-0.5">
-                          <span className="flex items-center"><ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-700" /> RERA Reg:</span>
-                          <span className="text-[11px] font-mono">{project.reraNumber}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                          <span>Status: <strong className="text-emerald-800">{project.reraStatus}</strong></span>
-                          <span>{project.reraTimestamp}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 mb-6 text-xs text-slate-600 font-medium">
-                        <div className="bg-slate-50 p-2 rounded">
-                          <span className="text-slate-400 block text-[10px]">Configurations</span>
-                          {project.unitMix}
-                        </div>
-                        <div className="bg-slate-50 p-2 rounded">
-                          <span className="text-slate-400 block text-[10px]">Price Starts</span>
-                          <strong className="text-emerald-900">{project.priceRange.split('-')[0]}</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3 pt-4 border-t border-slate-100">
-                      <button 
-                        onClick={() => setSelectedProject(project)}
-                        className="flex-1 bg-emerald-900 hover:bg-emerald-800 text-white py-2.5 rounded-xl text-xs font-semibold transition text-center"
-                      >
-                        View Details
-                      </button>
-                      <button 
-                        onClick={() => { setEnquireProjectName(project.name); setShowEnquireModal(true); }}
-                        className="px-4 py-2.5 border border-amber-500 text-amber-700 hover:bg-amber-50 rounded-xl text-xs font-semibold transition"
-                      >
-                        Enquire
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Why Choose AuraCorp */}
-          <section className="bg-emerald-900 text-white py-20">
-            <div className="container mx-auto px-4">
-              <div className="text-center max-w-2xl mx-auto mb-16">
-                <span className="text-amber-400 font-bold text-xs uppercase tracking-widest">The AuraCorp Advantage</span>
-                <h2 className="font-cinzel text-3xl md:text-4xl font-bold mt-2">Uncompromising Standards of Craftsmanship</h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="bg-emerald-950/60 p-8 rounded-2xl border border-emerald-800">
-                  <div className="w-12 h-12 bg-amber-500 text-emerald-950 rounded-xl flex items-center justify-center font-bold text-xl mb-6">01</div>
-                <h3 className="font-cinzel text-xl font-bold mb-3 text-amber-400">Prime Locations</h3>
-                <p className="text-slate-300 text-sm leading-relaxed">
-                  Every AuraCorp property is strategically positioned in India’s high-growth financial and coastal corridors, ensuring robust capital appreciation.
-                </p>
-                </div>
-                <div className="bg-emerald-950/60 p-8 rounded-2xl border border-emerald-800">
-                  <div className="w-12 h-12 bg-amber-500 text-emerald-950 rounded-xl flex items-center justify-center font-bold text-xl mb-6">02</div>
-                <h3 className="font-cinzel text-xl font-bold mb-3 text-amber-400">Biophilic & Sustainable</h3>
-                <p className="text-slate-300 text-sm leading-relaxed">
-                  Certified green buildings featuring solar micro-grids, rainwater harvesting, vertical forests, and zero-waste community management.
-                </p>
-                </div>
-                <div className="bg-emerald-950/60 p-8 rounded-2xl border border-emerald-800">
-                  <div className="w-12 h-12 bg-amber-500 text-emerald-950 rounded-xl flex items-center justify-center font-bold text-xl mb-6">03</div>
-                <h3 className="font-cinzel text-xl font-bold mb-3 text-amber-400">RERA & Legal Compliance</h3>
-                <p className="text-slate-300 text-sm leading-relaxed">
-                  100% transparent title deeds, timely milestone handovers, and strict RERA compliance with live progress feeds updated weekly.
-                </p>
-                </div>
-              </div>
-            </div>
-          </section>
-        </main>
+      {view === 'home' && (
+        <HomeView
+          settings={settings}
+          projects={projects}
+          news={news}
+          onProject={setActiveProject}
+          onEnquire={openEnquiry}
+          goTo={goTo}
+          onCompareToggle={toggleCompare}
+          compare={compare}
+        />
       )}
-
-      {/* ========================================================== */}
-      {/* 2. PROJECTS OVERVIEW TAB                                    */}
-      {/* ========================================================== */}
-      {activeTab === 'projects' && (
-        <main className="flex-1 container mx-auto px-4 py-12">
-          <div className="mb-10 text-center max-w-2xl mx-auto">
-            <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Complete Portfolio</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Explore Our Developments</h2>
-            <p className="text-slate-600 text-sm mt-2">Filter by status or search by location, project name, or configuration.</p>
-          </div>
-
-          {/* Filter & Search Bar */}
-          <div className="bg-white p-4 rounded-2xl shadow-md border border-slate-200 mb-10 flex flex-col md:flex-row gap-4 justify-between items-center">
-            <div className="flex flex-wrap gap-2 w-full md:w-auto">
-              {['All', 'Delivered', 'Ongoing', 'Upcoming'].map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-semibold transition ${categoryFilter === cat ? 'bg-emerald-900 text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search location, name..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-emerald-700"
-              />
-            </div>
-          </div>
-
-          {/* Projects Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {filteredProjects.map((project) => (
-              <div key={project.id} className="bg-white rounded-2xl overflow-hidden shadow-lg border border-slate-200 hover:shadow-2xl transition duration-300 flex flex-col group">
-                <div className="relative h-60 overflow-hidden">
-                  <img src={project.image} alt={project.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                  <div className="absolute top-4 left-4">
-                    <span className={`text-xs px-3 py-1 rounded-full font-bold shadow ${project.statusColor}`}>{project.statusBadge}</span>
-                  </div>
-                  <div className="absolute top-4 right-4">
-                    <button 
-                      onClick={() => toggleCompare(project.id)}
-                      className={`p-2 rounded-full shadow ${compareList.includes(project.id) ? 'bg-amber-500 text-white' : 'bg-white/80 text-slate-700 hover:bg-white'} transition`}
-                    >
-                      <SlidersHorizontal className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-6 flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center text-xs text-slate-500 mb-2">
-                      <MapPin className="w-3.5 h-3.5 text-amber-600 mr-1" /> {project.location}
-                    </div>
-                    <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-1">{project.name}</h3>
-                    <p className="text-xs text-slate-600 mb-4">{project.tagline}</p>
-                    
-                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 mb-4 text-xs">
-                      <div className="flex items-center justify-between text-emerald-950 font-semibold mb-0.5">
-                        <span className="flex items-center"><ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-700" /> RERA:</span>
-                        <span className="text-[11px] font-mono">{project.reraNumber}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                        <span>Status: <strong className="text-emerald-800">{project.reraStatus}</strong></span>
-                        <span>{project.reraTimestamp}</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mb-6 text-xs text-slate-600 font-medium">
-                      <div className="bg-slate-50 p-2 rounded">
-                        <span className="text-slate-400 block text-[10px]">Price</span>
-                        <strong className="text-emerald-900">{project.priceRange}</strong>
-                      </div>
-                      <div className="bg-slate-50 p-2 rounded">
-                        <span className="text-slate-400 block text-[10px]">Acres</span>
-                        <strong className="text-emerald-900">{project.acres}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-3 pt-4 border-t border-slate-100">
-                    <button 
-                      onClick={() => setSelectedProject(project)}
-                      className="flex-1 bg-emerald-900 hover:bg-emerald-800 text-white py-2.5 rounded-xl text-xs font-semibold transition text-center"
-                    >
-                      View Details
-                    </button>
-                    <button 
-                      onClick={() => { setEnquireProjectName(project.name); setShowEnquireModal(true); }}
-                      className="px-4 py-2.5 border border-amber-500 text-amber-700 hover:bg-amber-50 rounded-xl text-xs font-semibold transition"
-                    >
-                      Enquire
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
+      {view === 'projects' && (
+        <ProjectsView
+          projects={filtered}
+          all={projects}
+          statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+          categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
+          search={search} setSearch={setSearch}
+          onProject={setActiveProject}
+          onCompareToggle={toggleCompare}
+          compare={compare}
+          onOpenCompare={() => setShowCompare(true)}
+        />
       )}
-
-      {/* ========================================================== */}
-      {/* 3. DELIVERED PROJECTS TAB                                   */}
-      {/* ========================================================== */}
-      {activeTab === 'delivered' && (
-        <main className="flex-1 container mx-auto px-4 py-12">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Proven Track Record</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Delivered Townships & Handover Milestones</h2>
-            <p className="text-slate-600 text-sm mt-2">Explore our completed communities, occupancy statistics, and downloadable handover documentation.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {projects.filter(p => p.category === 'Delivered').map(project => (
-              <div key={project.id} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden flex flex-col">
-                <div className="relative h-72">
-                  <img src={project.image} alt={project.name} className="w-full h-full object-cover" />
-                  <div className="absolute top-4 left-4 bg-emerald-700 text-white text-xs px-3 py-1 rounded-full font-bold">
-                    {project.statusBadge}
-                  </div>
-                </div>
-                <div className="p-8 flex-1 flex flex-col justify-between">
-                  <div>
-                    <span className="text-xs text-amber-600 font-bold">{project.location}</span>
-                    <h3 className="font-cinzel text-2xl font-bold text-emerald-950 mt-1 mb-3">{project.name}</h3>
-                    <p className="text-slate-600 text-sm mb-6 leading-relaxed">{project.description}</p>
-                    
-                    <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl mb-6 text-center text-xs">
-                      <div>
-                        <span className="text-slate-400 block mb-1">Delivered</span>
-                        <strong className="text-emerald-900">{project.handoverDate}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block mb-1">Units</span>
-                        <strong className="text-emerald-900">{project.unitsDelivered}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block mb-1">Land Area</span>
-                        <strong className="text-emerald-900">{project.acres}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-4 pt-4 border-t border-slate-100">
-                    <button 
-                      onClick={() => setSelectedProject(project)}
-                      className="flex-1 bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-xs font-semibold transition text-center"
-                    >
-                      View Case Study & Docs
-                    </button>
-                    <button 
-                      onClick={() => showToast('Downloading Handover & Compliance Package (PDF)...')}
-                      className="px-4 py-3 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold flex items-center transition"
-                    >
-                      <Download className="w-4 h-4 mr-1.5 text-amber-600" /> Brochure
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
+      {view === 'delivered' && (
+        <ProjectsView projects={projects.filter(p => p.status === 'delivered')} all={projects} statusFilter="delivered" setStatusFilter={setStatusFilter} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} search={search} setSearch={setSearch} onProject={setActiveProject} onCompareToggle={toggleCompare} compare={compare} onOpenCompare={() => setShowCompare(true)} title="Delivered Projects" subtitle="A legacy of communities we've handed over" />
       )}
-
-      {/* ========================================================== */}
-      {/* 4. ONGOING PROJECTS TAB                                     */}
-      {/* ========================================================== */}
-      {activeTab === 'ongoing' && (
-        <main className="flex-1 container mx-auto px-4 py-12">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Live Progress</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Ongoing Townships & Construction Feeds</h2>
-            <p className="text-slate-600 text-sm mt-2">Track weekly progress photos, milestone logs, and expected handover timelines in real time.</p>
-          </div>
-
-          <div className="space-y-12">
-            {projects.filter(p => p.category === 'Ongoing').map(project => (
-              <div key={project.id} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
-                <div className="lg:col-span-5 relative min-h-[300px]">
-                  <img src={project.image} alt={project.name} className="w-full h-full object-cover" />
-                  <div className="absolute top-4 left-4 bg-amber-500 text-emerald-950 text-xs px-3 py-1 rounded-full font-bold">
-                    {project.completionPct}% Completed
-                  </div>
-                </div>
-                
-                <div className="lg:col-span-7 p-8 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <span className="text-xs text-amber-600 font-bold">{project.location}</span>
-                        <h3 className="font-cinzel text-2xl font-bold text-emerald-950 mt-1">{project.name}</h3>
-                      </div>
-                      <span className="text-xs font-mono bg-slate-100 text-slate-700 px-3 py-1 rounded-lg">RERA: {project.reraNumber}</span>
-                    </div>
-                    <p className="text-slate-600 text-sm mb-6">{project.description}</p>
-
-                    {/* Progress Bar */}
-                    <div className="mb-6">
-                      <div className="flex justify-between text-xs font-semibold mb-2 text-slate-700">
-                        <span>Construction Progress</span>
-                        <span className="text-emerald-800">{project.completionPct}% (Handover: {project.handoverDate})</span>
-                      </div>
-                      <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-                        <div className="bg-amber-500 h-full rounded-full" style={{ width: `${project.completionPct}%` }}></div>
-                      </div>
-                    </div>
-
-                    {/* Weekly progress feed snippet */}
-                    <div className="bg-slate-50 p-4 rounded-xl mb-6 border border-slate-200">
-                      <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wide mb-3 flex items-center">
-                        <RefreshCw className="w-3.5 h-3.5 text-amber-600 mr-1.5 animate-spin" /> Latest Weekly Site Update ({project.progressFeed[0]?.date})
-                      </h4>
-                      <p className="text-xs text-slate-600">{project.progressFeed[0]?.note}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-4 pt-4 border-t border-slate-100">
-                    <button 
-                      onClick={() => setSelectedProject(project)}
-                      className="flex-1 bg-emerald-900 hover:bg-emerald-800 text-white py-3 rounded-xl text-xs font-semibold transition text-center"
-                    >
-                      View Full Milestone Log
-                    </button>
-                    <button 
-                      onClick={() => { setEnquireProjectName(project.name); setShowEnquireModal(true); }}
-                      className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-emerald-950 rounded-xl text-xs font-bold transition shadow"
-                    >
-                      Schedule Site Visit
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
+      {view === 'ongoing' && (
+        <ProjectsView projects={projects.filter(p => p.status === 'ongoing')} all={projects} statusFilter="ongoing" setStatusFilter={setStatusFilter} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} search={search} setSearch={setSearch} onProject={setActiveProject} onCompareToggle={toggleCompare} compare={compare} onOpenCompare={() => setShowCompare(true)} title="Ongoing Projects" subtitle="Live construction updates & milestone tracking" />
       )}
-
-      {/* ========================================================== */}
-      {/* 5. UPCOMING (SOFT LAUNCH) TAB                               */}
-      {/* ========================================================== */}
-      {activeTab === 'upcoming' && (
-        <main className="flex-1 container mx-auto px-4 py-12">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="text-blue-600 font-bold text-xs uppercase tracking-widest">Exclusive Access</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Upcoming Soft Launches & VIP Reservations</h2>
-            <p className="text-slate-600 text-sm mt-2">Secure pre-launch allocations, priority floor choice, and introductory pricing before public release.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {projects.filter(p => p.category === 'Upcoming').map(project => (
-              <div key={project.id} className="bg-white rounded-2xl shadow-xl border border-blue-200 overflow-hidden flex flex-col">
-                <div className="relative h-72">
-                  <img src={project.image} alt={project.name} className="w-full h-full object-cover" />
-                  <div className="absolute top-4 left-4 bg-blue-600 text-white text-xs px-3 py-1 rounded-full font-bold">
-                    Soft Launch Priority Booking
-                  </div>
-                </div>
-                <div className="p-8 flex-1 flex flex-col justify-between">
-                  <div>
-                    <span className="text-xs text-blue-600 font-bold">{project.location}</span>
-                    <h3 className="font-cinzel text-2xl font-bold text-emerald-950 mt-1 mb-3">{project.name}</h3>
-                    <p className="text-slate-600 text-sm mb-6 leading-relaxed">{project.description}</p>
-                    
-                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 text-xs text-blue-900">
-                      <div className="font-bold mb-1 flex items-center">
-                        <Sparkles className="w-4 h-4 text-amber-500 mr-1.5" /> Soft Launch Privileges:
-                      </div>
-                      <ul className="list-disc list-inside space-y-1 text-slate-700">
-                        <li>Introductory price benefit of up to ₹15 Lakhs</li>
-                        <li>Priority floor & view selection</li>
-                        <li>Fully refundable EOI deposit of ₹2.5 Lakhs</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-4 pt-4 border-t border-slate-100">
-                    <button 
-                      onClick={() => { setEnquireProjectName(`${project.name} - Soft Launch Reservation`); setShowEnquireModal(true); }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-xs font-semibold transition text-center shadow"
-                    >
-                      Register for Soft Launch
-                    </button>
-                    <button 
-                      onClick={() => setSelectedProject(project)}
-                      className="px-4 py-3 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition"
-                    >
-                      Details
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
+      {view === 'upcoming' && (
+        <ProjectsView projects={projects.filter(p => p.status === 'upcoming')} all={projects} statusFilter="upcoming" setStatusFilter={setStatusFilter} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} search={search} setSearch={setSearch} onProject={setActiveProject} onCompareToggle={toggleCompare} compare={compare} onOpenCompare={() => setShowCompare(true)} title="Upcoming & Soft Launch" subtitle="Priority booking on tomorrow's landmarks" />
       )}
+      {view === 'about' && <AboutView settings={settings} />}
+      {view === 'team' && <TeamView team={team} />}
+      {view === 'news' && <NewsView news={news} />}
+      {view === 'contact' && <ContactView settings={settings} onSubmit={openEnquiry} />}
+      {view === 'admin' && <AdminView projects={projects} setProjects={setProjects} settings={settings} setSettings={setSettings} news={news} setNews={setNews} />}
 
-      {/* ========================================================== */}
-      {/* 6. ABOUT US TAB                                             */}
-      {/* ========================================================== */}
-      {activeTab === 'about' && (
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-5xl">
-          <div className="text-center mb-12">
-            <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Our Heritage</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Building Trust Since 1991</h2>
-          </div>
+      <Footer settings={settings} goTo={goTo} />
 
-          <div className="bg-white p-8 md:p-12 rounded-2xl shadow-lg border border-slate-200 mb-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-              <div>
-                <h3 className="font-cinzel text-2xl font-bold text-emerald-950 mb-4">The AuraCorp Philosophy</h3>
-                <p className="text-slate-600 text-sm leading-relaxed mb-4">
-                  Founded by visionary architect Vikramaditya Aura, AuraCorp has grown from a boutique architectural firm into India’s premier luxury real estate developer. Our developments stand as permanent testaments to rigorous structural engineering, exquisite aesthetics, and uncompromising environmental stewardship.
-                </p>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  We partner with globally renowned interior designers, landscape architects, and smart-home innovators to deliver living spaces that elevate human well-being.
-                </p>
-              </div>
-              <div className="relative h-72 rounded-xl overflow-hidden shadow-md">
-                <img src="https://images.pexels.com/photos/13416122/pexels-photo-13416122.jpeg" alt="AuraCorp Headquarters" className="w-full h-full object-cover" />
-              </div>
-            </div>
-          </div>
-
-          <h3 className="font-cinzel text-2xl font-bold text-emerald-950 mb-8 text-center">Milestones of Excellence</h3>
-          <div className="space-y-6">
-            {[
-              { year: '1991', title: 'Foundation Established', desc: 'AuraCorp founded in Mumbai with its first boutique residential project.' },
-              { year: '2005', title: 'Expansion into Biophilic Townships', desc: 'Pioneered sustainable township living with 50+ acre green masterplans.' },
-              { year: '2015', title: 'Global Excellence Award', desc: 'Recognized at the International Property Awards for Best High-Rise Architecture.' },
-              { year: '2026', title: '12 Million Sq.Ft Delivered', desc: 'Surpassed 18,000 delighted families across Mumbai, Bangalore, Hyderabad, and Chennai.' },
-            ].map((m, idx) => (
-              <div key={idx} className="bg-white p-6 rounded-xl shadow border border-slate-200 flex items-start space-x-6">
-                <div className="bg-amber-500 text-emerald-950 font-cinzel font-bold px-4 py-2 rounded-lg text-lg">
-                  {m.year}
-                </div>
-                <div>
-                  <h4 className="font-cinzel text-lg font-bold text-emerald-950 mb-1">{m.title}</h4>
-                  <p className="text-slate-600 text-xs">{m.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
-      )}
-
-      {/* ========================================================== */}
-      {/* 7. TEAM TAB                                                 */}
-      {/* ========================================================== */}
-      {activeTab === 'team' && (
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-5xl">
-          <div className="text-center mb-12">
-            <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Leadership</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Visionary Board & Executives</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { name: 'Vikramaditya Aura', role: 'Founder & Chairman', img: 'https://images.pexels.com/photos/37495707/pexels-photo-37495707.jpeg', bio: '35+ years leading landmark urban transformations across India.' },
-              { name: 'Ananya Sharma', role: 'Managing Director & CEO', img: 'https://images.pexels.com/photos/33902818/pexels-photo-33902818.jpeg', bio: 'Former Harvard GSD fellow specializing in biophilic urban ecosystems.' },
-              { name: 'Rajesh Nambiar', role: 'Chief Engineering Officer', img: 'https://images.pexels.com/photos/13416122/pexels-photo-13416122.jpeg', bio: 'Pioneered earthquake-resistant superstructure designs and smart micro-grids.' },
-            ].map((member, idx) => (
-              <div key={idx} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden flex flex-col">
-                <div className="h-64 relative">
-                  <img src={member.img} alt={member.name} className="w-full h-full object-cover" />
-                </div>
-                <div className="p-6 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-1">{member.name}</h3>
-                    <p className="text-xs font-semibold text-amber-600 mb-3">{member.role}</p>
-                    <p className="text-xs text-slate-600 leading-relaxed">{member.bio}</p>
-                  </div>
-                  <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
-                    <span>AuraCorp Executive</span>
-                    <span className="text-emerald-800 font-semibold cursor-pointer hover:underline">LinkedIn Profile</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
-      )}
-
-      {/* ========================================================== */}
-      {/* 8. NEWS & MEDIA TAB                                         */}
-      {/* ========================================================== */}
-      {activeTab === 'news' && (
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
-          <div className="text-center mb-12">
-            <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Press & Updates</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Latest News & Announcements</h2>
-          </div>
-
-          <div className="space-y-6">
-            {[
-              { title: 'AuraCorp Announces Q2 Launch of Sovereign Crown in Gachibowli', date: 'July 1, 2026', cat: 'Press Release', desc: 'Over 250 high-net-worth investors participated in the exclusive VIP soft launch event.' },
-              { title: 'Aura Forest Woods Receives Platinum Green Building Certification', date: 'June 15, 2026', cat: 'Sustainability', desc: 'Recognized for 100% net-zero water recycling and solar micro-grid implementation.' },
-              { title: 'CEO Ananya Sharma Keynotes International Real Estate Summit', date: 'May 28, 2026', cat: 'Events', desc: 'Discussing the future of biophilic skyline architecture in modern megacities.' },
-            ].map((news, idx) => (
-              <div key={idx} className="bg-white p-6 rounded-2xl shadow border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <div className="flex items-center space-x-3 mb-2 text-xs">
-                    <span className="bg-emerald-100 text-emerald-900 px-3 py-1 rounded-full font-bold">{news.cat}</span>
-                    <span className="text-slate-400">{news.date}</span>
-                  </div>
-                  <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-1">{news.title}</h3>
-                  <p className="text-xs text-slate-600">{news.desc}</p>
-                </div>
-                <button onClick={() => showToast('Opening full press release article...')} className="px-4 py-2 bg-emerald-900 text-white rounded-xl text-xs font-semibold hover:bg-emerald-800 transition whitespace-nowrap">
-                  Read Article
-                </button>
-              </div>
-            ))}
-          </div>
-        </main>
-      )}
-
-      {/* ========================================================== */}
-      {/* 9. CMS / ADMIN PANEL TAB                                    */}
-      {/* ========================================================== */}
-      {activeTab === 'cms' && (
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-5xl">
-          <div className="bg-amber-50 border border-amber-300 p-6 rounded-2xl mb-8 flex justify-between items-center">
-            <div>
-              <h2 className="font-cinzel text-2xl font-bold text-emerald-950 flex items-center">
-                <Settings className="w-6 h-6 mr-2 text-amber-600" /> Strapi Headless CMS Administration Panel
-              </h2>
-              <p className="text-xs text-slate-600 mt-1">Manage project RERA numbers, status updates, progress feed photos, and popup frequency control in real time.</p>
-            </div>
-            <button 
-              onClick={() => showToast('CMS configuration saved successfully!')} 
-              className="bg-emerald-900 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-800 shadow"
-            >
-              Save CMS Changes
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-2xl shadow border border-slate-200">
-              <h3 className="font-bold text-xs text-slate-500 uppercase mb-2">Popup Enquiry Frequency</h3>
-              <label className="text-xs text-slate-600 block mb-1">Delay (seconds):</label>
-              <input 
-                type="number" 
-                value={popupDelaySec} 
-                onChange={(e) => setPopupDelaySec(Number(e.target.value))}
-                className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs mb-3"
-              />
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold">Enable Popup:</span>
-                <input 
-                  type="checkbox" 
-                  checked={popupEnabled} 
-                  onChange={(e) => setPopupEnabled(e.target.checked)}
-                  className="w-4 h-4 accent-emerald-900"
-                />
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow border border-slate-200">
-              <h3 className="font-bold text-xs text-slate-500 uppercase mb-2">CRM Integration</h3>
-              <p className="text-xs text-slate-600 mb-3">HubSpot & Zoho Webhook Connected</p>
-              <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2.5 py-1 rounded-full font-bold">Status: Active & Syncing</span>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow border border-slate-200">
-              <h3 className="font-bold text-xs text-slate-500 uppercase mb-2">Export Data Feeds</h3>
-              <button 
-                onClick={() => showToast('Downloaded project listings as CSV/JSON for property portals.')}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 p-2.5 rounded-xl text-xs font-semibold transition flex items-center justify-center mb-2"
-              >
-                <Download className="w-4 h-4 mr-1.5 text-amber-600" /> Export CSV / JSON
-              </button>
-            </div>
-          </div>
-
-          <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-4">Edit Project RERA & Status Attributes</h3>
-          <div className="space-y-4">
-            {projects.map((proj, i) => (
-              <div key={proj.id} className="bg-white p-6 rounded-xl shadow border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-                <div>
-                  <strong className="text-emerald-950 text-sm block">{proj.name}</strong>
-                  <span className="text-xs text-slate-500">{proj.location}</span>
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400 block">RERA Number</label>
-                  <input 
-                    type="text" 
-                    value={proj.reraNumber} 
-                    onChange={(e) => {
-                      const updated = [...projects];
-                      updated[i].reraNumber = e.target.value;
-                      setProjects(updated);
-                    }}
-                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded text-xs font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400 block">Status Badge</label>
-                  <select 
-                    value={proj.statusBadge}
-                    onChange={(e) => {
-                      const updated = [...projects];
-                      updated[i].statusBadge = e.target.value;
-                      setProjects(updated);
-                    }}
-                    className="w-full p-2 bg-slate-50 border border-slate-300 rounded text-xs"
-                  >
-                    <option value="Delivered">Delivered</option>
-                    <option value="Ongoing">Ongoing</option>
-                    <option value="Soft Launch">Soft Launch</option>
-                  </select>
-                </div>
-                <div>
-                  <button 
-                    onClick={() => showToast(`Updated attributes for ${proj.name}`)}
-                    className="w-full bg-emerald-900 text-white py-2 rounded text-xs font-semibold hover:bg-emerald-800"
-                  >
-                    Update Record
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
-      )}
-
-      {/* ========================================================== */}
-      {/* 10. CONTACT TAB                                             */}
-      {/* ========================================================== */}
-      {activeTab === 'contact' && (
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
-          <div className="text-center mb-12">
-            <span className="text-amber-600 font-bold text-xs uppercase tracking-widest">Connect With Us</span>
-            <h2 className="font-cinzel text-3xl md:text-4xl font-bold text-emerald-950 mt-1">Sales Enquiry & Corporate Headquarters</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200">
-              <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-6">Send an Enquiry</h3>
-              <form onSubmit={(e) => { e.preventDefault(); showToast('Enquiry submitted successfully! Our sales manager will call you shortly.'); }} className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Full Name *</label>
-                  <input type="text" required placeholder="Mr. Rajesh Kumar" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Phone Number *</label>
-                  <input type="tel" required placeholder="+91 98765 43210" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Select Project of Interest</label>
-                  <select className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs">
-                    {projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">Message / Requirements</label>
-                  <textarea rows="3" placeholder="Looking for 4 BHK penthouse..." className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs"></textarea>
-                </div>
-                <div className="flex items-center space-x-2 text-xs text-slate-500">
-                  <input type="checkbox" required className="accent-emerald-900" />
-                  <span>I agree to GDPR terms & consent to receive WhatsApp/call updates.</span>
-                </div>
-                <button type="submit" className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-xs font-bold shadow transition">
-                  Submit Enquiry
-                </button>
-              </form>
-            </div>
-
-            <div className="bg-emerald-950 text-white p-8 rounded-2xl shadow-lg flex flex-col justify-between">
-              <div>
-                <h3 className="font-cinzel text-xl font-bold text-amber-400 mb-6">Corporate Headquarters</h3>
-                <div className="space-y-4 text-xs text-slate-300">
-                  <p className="flex items-start"><MapPin className="w-4 h-4 text-amber-400 mr-2 shrink-0 mt-0.5" /> Aura Towers, 28th Floor, Bandra Kurla Complex (BKC), Mumbai 400051</p>
-                  <p className="flex items-center"><Phone className="w-4 h-4 text-amber-400 mr-2 shrink-0" /> +91 800 555 9999 / +91 22 6123 4000</p>
-                  <p className="flex items-center"><Mail className="w-4 h-4 text-amber-400 mr-2 shrink-0" /> concierge@auracorpdev.com</p>
-                </div>
-
-                <div className="mt-8 pt-8 border-t border-emerald-900">
-                  <h4 className="font-cinzel text-sm font-bold text-amber-400 mb-3">Regional Sales Lounges</h4>
-                  <ul className="space-y-2 text-xs text-slate-300">
-                    <li>• Bangalore: Whitefield Main Road, Prestige Tech Park Annex</li>
-                    <li>• Hyderabad: Knowledge City, Gachibowli</li>
-                    <li>• Chennai: ECR Coastal Highway, Sholinganallur</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="mt-8 bg-emerald-900/80 p-4 rounded-xl border border-emerald-800 text-xs">
-                <span className="font-bold text-amber-400 block mb-1">WhatsApp Instant Chat</span>
-                <p className="text-slate-200">Connect instantly with our AI concierge or live real estate advisor.</p>
-              </div>
-            </div>
-          </div>
-        </main>
-      )}
-
-      {/* ========================================================== */}
-      {/* MODALS & OVERLAYS                                           */}
-      {/* ========================================================== */}
-
-      {/* Project Detail Modal */}
-      {selectedProject && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative border border-slate-200">
-            <button 
-              onClick={() => setSelectedProject(null)}
-              className="absolute top-6 right-6 z-10 bg-white/95 hover:bg-slate-100 p-2.5 rounded-full shadow-lg text-slate-700 transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Modal Hero Gallery */}
-            <div className="relative h-80">
-              <img src={selectedProject.image} alt={selectedProject.name} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-8">
-                <div>
-                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${selectedProject.statusColor} mb-2 inline-block`}>{selectedProject.statusBadge}</span>
-                  <h2 className="font-cinzel text-3xl font-bold text-white">{selectedProject.name}</h2>
-                  <p className="text-amber-400 text-xs mt-1 flex items-center"><MapPin className="w-3.5 h-3.5 mr-1" /> {selectedProject.location}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-8 space-y-8">
-              {/* RERA Banner */}
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-xs">
-                <div>
-                  <span className="font-bold text-emerald-950 flex items-center mb-1"><ShieldCheck className="w-4 h-4 text-emerald-700 mr-1.5" /> RERA Compliance & Verification</span>
-                  <p className="text-slate-600 font-mono">Registration No: <strong>{selectedProject.reraNumber}</strong> | {selectedProject.reraStatus}</p>
-                </div>
-                <span className="text-emerald-800 font-semibold bg-white px-3 py-1 rounded-lg border border-emerald-200">{selectedProject.reraTimestamp}</span>
-              </div>
-
-              {/* Summary & Stats */}
-              <div>
-                <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-3">Project Overview</h3>
-                <p className="text-slate-600 text-sm leading-relaxed mb-6">{selectedProject.description}</p>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <span className="text-slate-400 text-xs block">Price Range</span>
-                    <strong className="text-emerald-900 text-sm">{selectedProject.priceRange}</strong>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <span className="text-slate-400 text-xs block">Unit Configurations</span>
-                    <strong className="text-emerald-900 text-sm">{selectedProject.unitMix}</strong>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <span className="text-slate-400 text-xs block">Total Land Area</span>
-                    <strong className="text-emerald-900 text-sm">{selectedProject.acres}</strong>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <span className="text-slate-400 text-xs block">Expected Handover</span>
-                    <strong className="text-emerald-900 text-sm">{selectedProject.handoverDate}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Amenities */}
-              <div>
-                <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-3">World-Class Amenities</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {selectedProject.amenities?.map((amenity, idx) => (
-                    <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center space-x-2 text-xs font-semibold text-slate-700">
-                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>{amenity}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Milestone Tracker */}
-              <div>
-                <h3 className="font-cinzel text-xl font-bold text-emerald-950 mb-3">Milestone & Construction Log</h3>
-                <div className="space-y-3">
-                  {selectedProject.milestones?.map((m, idx) => (
-                    <div key={idx} className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
-                      <div className="flex items-center space-x-3">
-                        {m.completed ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
-                        ) : (
-                          <Clock className="w-5 h-5 text-amber-600 shrink-0" />
-                        )}
-                        <div>
-                          <strong className="text-emerald-950 block">{m.title}</strong>
-                          <span className="text-slate-400 text-[11px]">{m.date}</span>
-                        </div>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${m.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {m.completed ? 'Completed' : 'In Progress'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-4 pt-6 border-t border-slate-200">
-                <button 
-                  onClick={() => { setSelectedProject(null); setEnquireProjectName(selectedProject.name); setShowEnquireModal(true); }}
-                  className="flex-1 bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-xs font-bold shadow transition flex items-center justify-center"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-400 mr-2" /> Enquire / Book Visit
-                </button>
-                <button 
-                  onClick={() => showToast('Downloading High-Resolution Brochure & Floorplans (PDF)...')}
-                  className="px-6 py-3.5 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold flex items-center transition"
-                >
-                  <Download className="w-4 h-4 mr-2 text-amber-600" /> Download Brochure
-                </button>
-                <button 
-                  onClick={() => showToast('Launching Virtual 3D Tour viewer in immersive mode...')}
-                  className="px-6 py-3.5 border border-amber-500 bg-amber-50 text-amber-800 rounded-xl text-xs font-semibold flex items-center transition"
-                >
-                  <Eye className="w-4 h-4 mr-2 text-amber-600" /> Virtual 3D Tour
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Compare Modal */}
-      {showCompareModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative p-8 border border-slate-200">
-            <button 
-              onClick={() => setShowCompareModal(false)}
-              className="absolute top-6 right-6 bg-slate-100 hover:bg-slate-200 p-2.5 rounded-full text-slate-700 transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <h2 className="font-cinzel text-2xl font-bold text-emerald-950 mb-2">Side-by-Side Project Comparison</h2>
-            <p className="text-slate-600 text-xs mb-6">Compare up to 4 luxury developments across RERA compliance, pricing, and amenities.</p>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="p-4 font-bold text-slate-700">Attribute</th>
-                    {compareList.map(id => {
-                      const proj = projects.find(p => p.id === id);
-                      return (
-                        <th key={id} className="p-4 font-cinzel text-emerald-950 text-base">
-                          {proj?.name}
-                          <button onClick={() => toggleCompare(id)} className="block text-[10px] text-red-600 font-normal hover:underline mt-1">Remove</button>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  <tr>
-                    <td className="p-4 font-bold text-slate-700">Location</td>
-                    {compareList.map(id => <td key={id} className="p-4 text-slate-600">{projects.find(p => p.id === id)?.location}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 font-bold text-slate-700">Category & Status</td>
-                    {compareList.map(id => <td key={id} className="p-4 text-emerald-800 font-semibold">{projects.find(p => p.id === id)?.statusBadge}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 font-bold text-slate-700">Price Range</td>
-                    {compareList.map(id => <td key={id} className="p-4 text-emerald-900 font-bold">{projects.find(p => p.id === id)?.priceRange}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 font-bold text-slate-700">Unit Mix</td>
-                    {compareList.map(id => <td key={id} className="p-4 text-slate-600">{projects.find(p => p.id === id)?.unitMix}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 font-bold text-slate-700">RERA Number</td>
-                    {compareList.map(id => <td key={id} className="p-4 font-mono text-[11px] text-slate-700">{projects.find(p => p.id === id)?.reraNumber}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 font-bold text-slate-700">Land Area & Units</td>
-                    {compareList.map(id => {
-                      const p = projects.find(proj => proj.id === id);
-                      return <td key={id} className="p-4 text-slate-600">{p?.acres} ({p?.unitsDelivered})</td>;
-                    })}
-                  </tr>
-                  <tr>
-                    <td className="p-4 font-bold text-slate-700">Handover Date</td>
-                    {compareList.map(id => <td key={id} className="p-4 text-slate-600">{projects.find(p => p.id === id)?.handoverDate}</td>)}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-slate-200">
-              <button onClick={() => showToast('Comparison exported as CSV & PDF successfully.')} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-6 py-2.5 rounded-xl text-xs font-semibold flex items-center transition">
-                <Download className="w-4 h-4 mr-1.5 text-amber-600" /> Export Comparison
-              </button>
-              <button onClick={() => setShowCompareModal(false)} className="bg-emerald-900 hover:bg-emerald-800 text-white px-6 py-2.5 rounded-xl text-xs font-bold">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* General Enquire Modal */}
-      {showEnquireModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl relative border border-slate-200">
-            <button onClick={() => setShowEnquireModal(false)} className="absolute top-6 right-6 bg-slate-100 hover:bg-slate-200 p-2 rounded-full text-slate-700">
-              <X className="w-5 h-5" />
-            </button>
-
-            <span className="text-amber-600 font-bold text-[10px] uppercase tracking-widest block mb-1">Priority Assistance</span>
-            <h3 className="font-cinzel text-2xl font-bold text-emerald-950 mb-2">Enquire / Schedule Visit</h3>
-            <p className="text-xs text-slate-600 mb-6">Property: <strong className="text-emerald-900">{enquireProjectName}</strong></p>
-
-            <form onSubmit={(e) => { e.preventDefault(); setShowEnquireModal(false); showToast('Enquiry successfully recorded! Our sales consultant will call you within 15 mins.'); }} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Full Name *</label>
-                <input type="text" required placeholder="Mr. Rajesh Kumar" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Phone Number *</label>
-                <input type="tel" required placeholder="+91 98765 43210" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Preferred Date & Time</label>
-                <input type="datetime-local" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs" />
-              </div>
-              <div className="flex items-center space-x-2 text-xs text-slate-500">
-                <input type="checkbox" required className="accent-emerald-900" />
-                <span>I agree to receive WhatsApp updates and RERA disclosures.</span>
-              </div>
-              <button type="submit" className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-xs font-bold shadow transition">
-                Confirm & Submit
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Automatic Popup Enquiry Form */}
-      {showPopup && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl relative border border-amber-400">
-            <button 
-              onClick={() => { setShowPopup(false); sessionStorage.setItem('auracorp_popup_suppressed', 'true'); }} 
-              className="absolute top-6 right-6 bg-slate-100 hover:bg-slate-200 p-2 rounded-full text-slate-700"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 bg-amber-500 text-emerald-950 rounded-2xl mx-auto flex items-center justify-center mb-3 shadow">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <span className="text-amber-600 font-bold text-[10px] uppercase tracking-widest">Exclusive Invitation</span>
-              <h3 className="font-cinzel text-2xl font-bold text-emerald-950 mt-1">Unlock VIP Soft Launch Privileges</h3>
-              <p className="text-xs text-slate-600 mt-2">Register now to receive priority floor plans, introductory pricing, and an exclusive luxury brochure.</p>
-            </div>
-
-            <form onSubmit={(e) => { e.preventDefault(); setShowPopup(false); sessionStorage.setItem('auracorp_popup_suppressed', 'true'); showToast('Thank you! VIP Welcome Package sent to your phone.'); }} className="space-y-4">
-              <div>
-                <input type="text" required placeholder="Full Name *" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs" />
-              </div>
-              <div>
-                <input type="tel" required placeholder="Phone Number (+91) *" className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs" />
-              </div>
-              <button type="submit" className="w-full bg-emerald-900 hover:bg-emerald-800 text-white py-3.5 rounded-xl text-xs font-bold shadow transition">
-                Claim VIP Privileges Now
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Floating WhatsApp / Chat Button */}
-      <div className="fixed bottom-6 right-6 z-40">
-        <button 
-          onClick={() => setChatOpen(!chatOpen)}
-          className="bg-emerald-700 hover:bg-emerald-800 text-white p-4 rounded-full shadow-2xl flex items-center justify-center transition transform hover:scale-105"
+      {/* Sticky Enquire Button */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3 no-print">
+        <a
+          href={`https://wa.me/${settings?.whatsapp}?text=Hi%20Gillco%20Group`}
+          target="_blank" rel="noreferrer"
+          className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-2xl flex items-center justify-center transition"
+          title="Chat on WhatsApp"
         >
-          <MessageSquare className="w-6 h-6 text-amber-400" />
+          <MessageCircle className="w-6 h-6" />
+        </a>
+        <button
+          onClick={() => openEnquiry({ type: 'sticky' })}
+          className="px-5 h-14 rounded-full gradient-gold text-slate-900 font-semibold shadow-2xl hover:brightness-110 transition flex items-center gap-2"
+        >
+          <Sparkles className="w-4 h-4" /> Enquire Now
         </button>
       </div>
 
-      {/* Chat Drawer */}
-      {chatOpen && (
-        <div className="fixed bottom-24 right-6 z-50 bg-white rounded-2xl shadow-2xl w-80 md:w-96 border border-slate-200 flex flex-col overflow-hidden">
-          <div className="bg-emerald-900 text-white p-4 flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-emerald-400 rounded-full animate-ping"></div>
-              <span className="font-cinzel text-sm font-bold">AuraCorp Concierge AI</span>
-            </div>
-            <button onClick={() => setChatOpen(false)} className="text-white hover:text-amber-400"><X className="w-4 h-4" /></button>
-          </div>
-
-          <div className="p-4 flex-1 h-72 overflow-y-auto space-y-3 bg-slate-50 text-xs">
-            {chatMessages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-3 rounded-2xl max-w-[80%] ${msg.sender === 'user' ? 'bg-emerald-900 text-white rounded-br-none' : 'bg-white text-slate-800 shadow border border-slate-200 rounded-bl-none'}`}>
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-slate-200 flex space-x-2">
-            <input 
-              type="text" 
-              placeholder="Ask about price, RERA, site visits..." 
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              className="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-emerald-800"
-            />
-            <button type="submit" className="bg-emerald-900 text-white px-4 py-2.5 rounded-xl text-xs font-semibold hover:bg-emerald-800">
-              Send
+      {/* Compare bar */}
+      {compare.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 no-print">
+          <div className="bg-gillco-green text-white shadow-2xl rounded-full flex items-center gap-3 pl-5 pr-2 py-2">
+            <span className="text-sm">{compare.length} selected to compare</span>
+            <button onClick={() => setShowCompare(true)} className="bg-gillco-gold text-slate-900 font-semibold px-4 py-2 rounded-full text-sm hover:brightness-110">
+              Compare Now
             </button>
-          </form>
+            <button onClick={() => setCompare([])} className="text-white/70 hover:text-white p-2"><X className="w-4 h-4" /></button>
+          </div>
         </div>
       )}
 
-      {/* FOOTER */}
-      <footer className="bg-emerald-950 text-emerald-100 py-16 border-t border-emerald-900">
-        <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-12 text-xs">
-          <div>
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-emerald-950 font-bold">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <span className="font-cinzel text-lg font-bold text-white">AURACORP</span>
-            </div>
-            <p className="text-slate-400 leading-relaxed mb-4">
-              India's premier luxury real estate developer crafting sustainable townships, skyline penthouses, and biophilic residential communities.
-            </p>
-            <p className="text-slate-500">© 2026 AuraCorp Developers Ltd. All Rights Reserved.</p>
-          </div>
+      {activeProject && (
+        <ProjectDetail
+          project={activeProject}
+          onClose={() => setActiveProject(null)}
+          onEnquire={(t) => { setActiveProject(null); openEnquiry({ type: t, projectId: activeProject.id, projectName: activeProject.name }); }}
+          onCompareToggle={toggleCompare}
+          inCompare={compare.includes(activeProject.id)}
+        />
+      )}
 
-          <div>
-            <h4 className="font-cinzel text-sm font-bold text-amber-400 uppercase tracking-widest mb-4">Quick Links</h4>
-            <ul className="space-y-2 text-slate-300">
-              <li><button onClick={() => setActiveTab('projects')} className="hover:text-amber-400 transition">All Projects</button></li>
-              <li><button onClick={() => setActiveTab('delivered')} className="hover:text-amber-400 transition">Delivered Communities</button></li>
-              <li><button onClick={() => setActiveTab('ongoing')} className="hover:text-amber-400 transition">Ongoing Construction</button></li>
-              <li><button onClick={() => setActiveTab('upcoming')} className="hover:text-amber-400 transition">Soft Launch Reservations</button></li>
-              <li><button onClick={() => setActiveTab('about')} className="hover:text-amber-400 transition">About Builder History</button></li>
-            </ul>
-          </div>
+      {showCompare && (
+        <CompareModal
+          projects={projects.filter(p => compare.includes(p.id))}
+          onClose={() => setShowCompare(false)}
+          onRemove={(id) => setCompare(prev => prev.filter(x => x !== id))}
+        />
+      )}
 
-          <div>
-            <h4 className="font-cinzel text-sm font-bold text-amber-400 uppercase tracking-widest mb-4">RERA Disclaimers</h4>
-            <p className="text-slate-400 leading-relaxed">
-              All project details, floor plans, and RERA registration numbers are verified per state regulatory authorities. RERA Reg No. P51800029841, PRM/KA/RERA/1251/308, P02400005421.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-cinzel text-sm font-bold text-amber-400 uppercase tracking-widest mb-4">Newsletter & Updates</h4>
-            <p className="text-slate-400 mb-4">Subscribe for exclusive launch invitations and market research reports.</p>
-            <form onSubmit={(e) => { e.preventDefault(); showToast('Subscribed successfully!'); }} className="space-y-2">
-              <input type="email" required placeholder="Enter your email" className="w-full p-2.5 bg-emerald-900 border border-emerald-800 rounded-xl text-white text-xs" />
-              <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-emerald-950 font-bold py-2.5 rounded-xl transition">
-                Subscribe
-              </button>
-            </form>
-          </div>
-        </div>
-      </footer>
-
+      {showEnquiry && (
+        <EnquiryModal
+          prefill={enquiryPrefill}
+          settings={settings}
+          onClose={() => setShowEnquiry(false)}
+          projects={projects}
+        />
+      )}
     </div>
   );
 }
+
+/* ============================ HEADER ============================ */
+function Header({ settings, view, goTo, mobileNav, setMobileNav, onEnquire }) {
+  const nav = [
+    { id: 'home', label: 'Home' },
+    { id: 'about', label: 'Legacy' },
+    { id: 'projects', label: 'Projects' },
+    { id: 'delivered', label: 'Delivered' },
+    { id: 'ongoing', label: 'Ongoing' },
+    { id: 'upcoming', label: 'Soft Launch' },
+    { id: 'team', label: 'Team' },
+    { id: 'news', label: 'Spotlight' },
+    { id: 'contact', label: 'Contact' },
+  ];
+  return (
+    <>
+      {/* Top bar */}
+      <div className="bg-gillco-green text-white text-xs no-print">
+        <div className="max-w-7xl mx-auto px-4 py-2 flex justify-between items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <a href={`tel:${settings?.phone?.replace(/\s/g, '')}`} className="flex items-center gap-1.5 hover:text-gillco-gold transition">
+              <Phone className="w-3 h-3" /> {settings?.phone}
+            </a>
+            <a href={`mailto:${settings?.email}`} className="hidden sm:flex items-center gap-1.5 hover:text-gillco-gold transition">
+              <Mail className="w-3 h-3" /> {settings?.email}
+            </a>
+          </div>
+          <a href={`https://wa.me/${settings?.whatsapp}`} target="_blank" rel="noreferrer" className="hidden md:flex items-center gap-1.5 hover:text-gillco-gold transition">
+            <MessageCircle className="w-3 h-3" /> Chat on WhatsApp
+          </a>
+        </div>
+      </div>
+
+      {/* Main header */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-100 no-print">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <button onClick={() => goTo('home')} className="flex items-center gap-3">
+            <img src={GILLCO_LOGO} alt="Gillco Group" className="h-10 md:h-12" />
+          </button>
+          <nav className="hidden lg:flex items-center gap-6">
+            {nav.map(n => (
+              <button key={n.id} onClick={() => goTo(n.id)}
+                className={`text-sm font-medium transition ${view === n.id ? 'text-gillco-green' : 'text-slate-600 hover:text-gillco-green'}`}>
+                {n.label}
+              </button>
+            ))}
+          </nav>
+          <div className="flex items-center gap-2">
+            <button onClick={onEnquire} className="hidden md:inline-flex px-5 py-2.5 rounded-full gradient-gold text-slate-900 font-semibold text-sm hover:brightness-110 transition">
+              Schedule Visit
+            </button>
+            <button onClick={() => setMobileNav(!mobileNav)} className="lg:hidden p-2 text-gillco-green">
+              {mobileNav ? <X /> : <Menu />}
+            </button>
+          </div>
+        </div>
+        {mobileNav && (
+          <div className="lg:hidden border-t border-slate-100 bg-white">
+            <div className="px-4 py-3 space-y-1">
+              {nav.map(n => (
+                <button key={n.id} onClick={() => goTo(n.id)}
+                  className={`block w-full text-left px-3 py-2 rounded-md text-sm ${view === n.id ? 'bg-gillco-cream text-gillco-green font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}>
+                  {n.label}
+                </button>
+              ))}
+              <button onClick={() => { setMobileNav(false); onEnquire(); }} className="w-full mt-2 py-2.5 rounded-full gradient-gold text-slate-900 font-semibold text-sm">Schedule Visit</button>
+            </div>
+          </div>
+        )}
+      </header>
+    </>
+  );
+}
+
+/* ============================ HOME ============================ */
+function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onCompareToggle, compare }) {
+  const featured = projects.find(p => p.slug === 'meraqui') || projects[0];
+  const reraCards = projects.filter(p => p.featured || p.status === 'upcoming' || p.status === 'ongoing').slice(0, 3);
+
+  return (
+    <>
+      <Hero settings={settings} onEnquire={onEnquire} goTo={goTo} />
+
+      {/* RERA quick cards */}
+      <section className="py-12 bg-gillco-cream">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-8">
+            <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">RERA Compliance</p>
+            <h2 className="font-serif text-3xl md:text-4xl text-gillco-green mt-2">Latest RERA Status Updates</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {reraCards.map(p => (
+              <div key={p.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>
+                    <h3 className="mt-3 font-serif text-2xl text-gillco-green">{p.name}</h3>
+                    <p className="text-sm text-slate-500 mt-1">{p.location}</p>
+                  </div>
+                  <ShieldCheck className="w-8 h-8 text-gillco-gold shrink-0" />
+                </div>
+                <div className="border-t border-slate-100 pt-3 mt-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">RERA No.</span><span className="font-mono text-slate-800">{p.reraNumber}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="text-emerald-700 font-medium">{p.reraStatus}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Updated</span><span className="text-slate-800">{new Date(p.reraUpdatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>
+                </div>
+                <button onClick={() => onProject(p)} className="mt-4 text-gillco-green font-semibold text-sm inline-flex items-center gap-1 hover:gap-2 transition-all">
+                  View Details <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { icon: Award, val: `${settings?.stats?.years}+`, label: 'Years of Excellence' },
+              { icon: Building2, val: `${settings?.stats?.projects}+`, label: 'Projects Delivered' },
+              { icon: Users, val: `${settings?.stats?.families?.toLocaleString('en-IN')}+`, label: 'Happy Families' },
+              { icon: LandPlot, val: settings?.stats?.sqft, label: 'Sq. Ft. Developed' },
+            ].map((s, i) => (
+              <div key={i} className="text-center p-6 rounded-2xl bg-gillco-cream border border-gillco-gold/20 hover:shadow-md transition">
+                <s.icon className="w-8 h-8 text-gillco-gold mx-auto mb-3" />
+                <div className="font-serif text-4xl md:text-5xl text-gillco-green font-semibold">{s.val}</div>
+                <div className="text-xs md:text-sm text-slate-600 mt-2 uppercase tracking-wider">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Project — Meraqui */}
+      {featured && (
+        <section className="py-20 bg-gillco-cream">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="relative">
+                <img src={featured.heroImage} alt={featured.name} className="rounded-2xl shadow-2xl w-full aspect-[4/3] object-cover" />
+                <div className="absolute -bottom-6 -right-6 bg-gillco-green text-white p-6 rounded-2xl shadow-xl hidden md:block">
+                  <div className="text-4xl font-serif text-gillco-gold">{featured.acres}</div>
+                  <div className="text-xs uppercase tracking-wider">Acres</div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Signature Development</p>
+                <h2 className="font-serif text-4xl md:text-5xl text-gillco-green mt-3">{featured.name}</h2>
+                <p className="text-slate-500 mt-2">{featured.tagline} · {featured.location}</p>
+                <p className="mt-6 text-slate-700 leading-relaxed">{featured.summary}</p>
+                <div className="grid grid-cols-3 gap-4 mt-8">
+                  <div className="border-l-2 border-gillco-gold pl-3"><div className="font-serif text-2xl text-gillco-green">{featured.towers}</div><div className="text-xs text-slate-500 uppercase">Towers</div></div>
+                  <div className="border-l-2 border-gillco-gold pl-3"><div className="font-serif text-2xl text-gillco-green">{featured.unitMix}</div><div className="text-xs text-slate-500 uppercase">BHK</div></div>
+                  <div className="border-l-2 border-gillco-gold pl-3"><div className="font-serif text-2xl text-gillco-green">{featured.units}</div><div className="text-xs text-slate-500 uppercase">Residences</div></div>
+                </div>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <button onClick={() => onProject(featured)} className="px-6 py-3 bg-gillco-green text-white rounded-full font-medium hover:bg-gillco-green-dark transition inline-flex items-center gap-2">
+                    Explore {featured.name.split(' ').pop()} <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onEnquire({ type: 'featured', projectId: featured.id, projectName: featured.name })} className="px-6 py-3 gradient-gold text-slate-900 rounded-full font-semibold hover:brightness-110 transition">
+                    Book Soft Launch
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Projects carousel */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
+            <div>
+              <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Our Portfolio</p>
+              <h2 className="font-serif text-4xl text-gillco-green mt-2">Featured Projects</h2>
+            </div>
+            <button onClick={() => goTo('projects')} className="text-gillco-green font-medium inline-flex items-center gap-2 hover:gap-3 transition-all">
+              View All Projects <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.slice(0, 6).map(p => (
+              <ProjectCard key={p.id} project={p} onOpen={() => onProject(p)} onCompareToggle={() => onCompareToggle(p.id)} inCompare={compare.includes(p.id)} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Announcements */}
+      <section className="py-16 bg-gillco-green text-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
+            <div>
+              <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Corporate</p>
+              <h2 className="font-serif text-4xl mt-2">Announcements</h2>
+            </div>
+            <button onClick={() => goTo('news')} className="text-gillco-gold font-medium inline-flex items-center gap-2 hover:gap-3 transition-all">
+              All Updates <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {news.slice(0, 3).map(n => (
+              <div key={n.id} className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10 hover:bg-white/10 transition">
+                <div className="text-gillco-gold text-xs tracking-wider uppercase mb-2">
+                  {new Date(n.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} · {n.category}
+                </div>
+                <p className="text-white/90 leading-relaxed">{n.title}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+/* ============================ HERO ============================ */
+function Hero({ settings, onEnquire, goTo }) {
+  const slides = settings?.hero?.slides || [];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (!slides.length) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % slides.length), 5000);
+    return () => clearInterval(t);
+  }, [slides.length]);
+
+  return (
+    <section className="relative h-[85vh] min-h-[600px] w-full overflow-hidden">
+      {slides.map((s, i) => (
+        <div
+          key={i}
+          className={`absolute inset-0 transition-opacity duration-1000 ${i === idx ? 'opacity-100' : 'opacity-0'}`}
+          style={{ backgroundImage: `url(${s.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        />
+      ))}
+      <div className="absolute inset-0 hero-overlay" />
+      <div className="relative h-full max-w-7xl mx-auto px-4 flex flex-col justify-center text-white">
+        <p className="text-xs md:text-sm tracking-[0.4em] text-gillco-gold uppercase font-semibold animate-fadeInUp">Est. {settings?.founded} · Punjab</p>
+        <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl mt-4 leading-tight animate-fadeInUp whitespace-pre-line max-w-4xl">
+          {settings?.hero?.headline}
+        </h1>
+        <p className="mt-6 text-lg md:text-xl text-white/90 max-w-2xl animate-fadeInUp">{settings?.hero?.subline}</p>
+        <div className="mt-10 flex flex-wrap gap-4 animate-fadeInUp">
+          <button onClick={() => goTo('projects')} className="px-8 py-4 bg-white text-gillco-green rounded-full font-semibold hover:bg-gillco-gold transition inline-flex items-center gap-2">
+            View Projects <ArrowRight className="w-4 h-4" />
+          </button>
+          <button onClick={() => onEnquire({ type: 'hero' })} className="px-8 py-4 border-2 border-white text-white rounded-full font-semibold hover:bg-white hover:text-gillco-green transition">
+            Schedule a Visit
+          </button>
+        </div>
+
+        {/* Slide indicator + controls */}
+        <div className="absolute bottom-8 left-4 right-4 max-w-7xl mx-auto flex items-center justify-between text-white">
+          <div className="flex gap-2">
+            {slides.map((_, i) => (
+              <button key={i} onClick={() => setIdx(i)} className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-10 bg-gillco-gold' : 'w-6 bg-white/40'}`} />
+            ))}
+          </div>
+          <div className="text-right hidden md:block">
+            <p className="text-xs uppercase tracking-widest text-gillco-gold">Now Featuring</p>
+            <p className="font-serif text-xl">{slides[idx]?.title}</p>
+            <p className="text-xs text-white/70">{slides[idx]?.subtitle}</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setIdx((idx - 1 + slides.length) % slides.length)} className="w-10 h-10 rounded-full border border-white/40 hover:bg-white hover:text-gillco-green transition flex items-center justify-center"><ChevronLeft className="w-4 h-4" /></button>
+            <button onClick={() => setIdx((idx + 1) % slides.length)} className="w-10 h-10 rounded-full border border-white/40 hover:bg-white hover:text-gillco-green transition flex items-center justify-center"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================ PROJECT CARD ============================ */
+function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
+  const s = STATUS_MAP[project.status];
+  return (
+    <div className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-1 transition-all">
+      <div className="relative h-64 overflow-hidden">
+        <img src={project.heroImage} alt={project.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+        <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
+        <span className="absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-800 capitalize">{project.category}</span>
+      </div>
+      <div className="p-6">
+        <h3 className="font-serif text-2xl text-gillco-green">{project.name}</h3>
+        <p className="text-sm text-slate-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {project.location}</p>
+        <p className="text-sm text-slate-600 mt-3 line-clamp-2">{project.summary}</p>
+        <div className="mt-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-3">
+          <span>{project.unitMix}</span>
+          <span className="font-mono">{project.reraNumber}</span>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button onClick={onOpen} className="flex-1 py-2.5 bg-gillco-green text-white rounded-full text-sm font-medium hover:bg-gillco-green-dark transition">
+            View Details
+          </button>
+          <button
+            onClick={onCompareToggle}
+            className={`px-4 py-2.5 rounded-full text-sm font-medium transition ${inCompare ? 'bg-gillco-gold text-slate-900' : 'border border-gillco-green text-gillco-green hover:bg-gillco-cream'}`}
+            title="Add to Compare"
+          >
+            {inCompare ? '✓ Added' : 'Compare'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ PROJECTS VIEW ============================ */
+function ProjectsView({ projects, all, statusFilter, setStatusFilter, categoryFilter, setCategoryFilter, search, setSearch, onProject, onCompareToggle, compare, onOpenCompare, title = 'Our Projects', subtitle = 'Building excellence across Punjab' }) {
+  return (
+    <section className="py-16 bg-gillco-cream min-h-screen">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="text-center mb-10">
+          <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Building Excellence</p>
+          <h1 className="font-serif text-5xl text-gillco-green mt-3">{title}</h1>
+          <p className="text-slate-600 mt-3">{subtitle}</p>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-100 mb-8">
+          <div className="grid md:grid-cols-4 gap-3">
+            <div className="md:col-span-2 relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or location…" className="w-full pl-9 pr-3 py-2.5 rounded-full border border-slate-200 text-sm focus:border-gillco-green outline-none" />
+            </div>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-4 py-2.5 rounded-full border border-slate-200 text-sm focus:border-gillco-green outline-none">
+              <option value="all">All Status</option>
+              <option value="delivered">Delivered</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="upcoming">Upcoming / Soft Launch</option>
+            </select>
+            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="px-4 py-2.5 rounded-full border border-slate-200 text-sm focus:border-gillco-green outline-none">
+              <option value="all">All Categories</option>
+              <option value="residential">Residential</option>
+              <option value="industrial">Industrial</option>
+              <option value="commercial">Commercial</option>
+            </select>
+          </div>
+          {compare.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-sm text-slate-600">{compare.length} project(s) selected</span>
+              <button onClick={onOpenCompare} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold">Open Compare Tool</button>
+            </div>
+          )}
+        </div>
+
+        {projects.length === 0 ? (
+          <div className="text-center py-20 text-slate-500">No projects match your filters.</div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map(p => (
+              <ProjectCard key={p.id} project={p} onOpen={() => onProject(p)} onCompareToggle={() => onCompareToggle(p.id)} inCompare={compare.includes(p.id)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ============================ PROJECT DETAIL MODAL ============================ */
+function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare }) {
+  const s = STATUS_MAP[project.status];
+  const [imgIdx, setImgIdx] = useState(0);
+  const gallery = project.gallery?.length ? project.gallery : [project.heroImage];
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm overflow-y-auto no-print">
+      <div className="min-h-screen py-8 px-4 flex items-start justify-center">
+        <div className="bg-white w-full max-w-6xl rounded-3xl overflow-hidden shadow-2xl">
+          {/* Gallery */}
+          <div className="relative h-96 bg-slate-100">
+            <img src={gallery[imgIdx]} alt={project.name} className="w-full h-full object-cover" />
+            <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center"><X className="w-5 h-5" /></button>
+            <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
+            {gallery.length > 1 && (
+              <>
+                <button onClick={() => setImgIdx((imgIdx - 1 + gallery.length) % gallery.length)} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center"><ChevronLeft /></button>
+                <button onClick={() => setImgIdx((imgIdx + 1) % gallery.length)} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center"><ChevronRight /></button>
+              </>
+            )}
+          </div>
+          <div className="p-8">
+            <div className="flex items-start justify-between flex-wrap gap-4">
+              <div>
+                <h2 className="font-serif text-4xl text-gillco-green">{project.name}</h2>
+                <p className="text-slate-500 mt-1 flex items-center gap-1"><MapPin className="w-4 h-4" /> {project.location}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={onCompareToggle} className={`px-4 py-2 rounded-full text-sm font-medium ${inCompare ? 'bg-gillco-gold text-slate-900' : 'border border-gillco-green text-gillco-green'}`}>
+                  {inCompare ? '✓ Added to Compare' : '+ Add to Compare'}
+                </button>
+              </div>
+            </div>
+
+            {/* RERA */}
+            <div className="mt-6 bg-gillco-cream rounded-2xl p-5 border border-gillco-gold/30">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldCheck className="w-5 h-5 text-gillco-gold" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-gillco-green">RERA Disclosure</span>
+              </div>
+              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                <div><span className="text-slate-500 block text-xs">RERA Number</span><span className="font-mono text-slate-800">{project.reraNumber}</span></div>
+                <div><span className="text-slate-500 block text-xs">Status</span><span className="text-emerald-700 font-medium">{project.reraStatus}</span></div>
+                <div><span className="text-slate-500 block text-xs">Last Updated</span><span className="text-slate-800">{new Date(project.reraUpdatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</span></div>
+              </div>
+            </div>
+
+            <p className="mt-6 text-slate-700 leading-relaxed">{project.summary}</p>
+
+            {/* Quick Stats */}
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                ['Unit Mix', project.unitMix],
+                ['Price Range', project.priceRange],
+                ['Acres', project.acres],
+                ['Total Units', project.units],
+              ].map(([l, v]) => (
+                <div key={l} className="p-4 bg-slate-50 rounded-xl">
+                  <div className="text-xs text-slate-500 uppercase">{l}</div>
+                  <div className="text-slate-900 font-medium mt-1">{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Progress */}
+            {project.status !== 'delivered' && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="font-semibold text-gillco-green">Construction Progress</span>
+                  <span className="text-slate-600">{project.constructionPercent}% Complete</span>
+                </div>
+                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full gradient-emerald" style={{ width: `${project.constructionPercent}%` }} />
+                </div>
+              </div>
+            )}
+
+            {/* Milestones */}
+            {project.milestones?.length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-serif text-2xl text-gillco-green mb-4">Project Milestones</h3>
+                <div className="space-y-3">
+                  {project.milestones.map((m, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
+                      {m.done ? <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5" /> : <Clock className="w-5 h-5 text-slate-400 mt-0.5" />}
+                      <div className="flex-1">
+                        <div className="font-medium text-slate-800">{m.title}</div>
+                        <div className="text-xs text-slate-500">{new Date(m.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Amenities */}
+            {project.amenities?.length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-serif text-2xl text-gillco-green mb-4">Amenities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {project.amenities.map(a => (
+                    <span key={a} className="px-3 py-1.5 bg-gillco-cream text-gillco-green border border-gillco-gold/30 rounded-full text-sm">{a}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* CTAs */}
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button onClick={() => onEnquire('detail-enquire')} className="px-6 py-3 bg-gillco-green text-white rounded-full font-medium">Enquire Now</button>
+              <button onClick={() => onEnquire('schedule-visit')} className="px-6 py-3 gradient-gold text-slate-900 rounded-full font-semibold">Schedule a Visit</button>
+              {project.status === 'upcoming' && <button onClick={() => onEnquire('soft-launch')} className="px-6 py-3 border-2 border-gillco-green text-gillco-green rounded-full font-medium">Book Soft Launch</button>}
+              <button className="px-6 py-3 border border-slate-300 text-slate-700 rounded-full font-medium inline-flex items-center gap-2"><Download className="w-4 h-4" /> Download Brochure</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ COMPARE MODAL ============================ */
+function CompareModal({ projects, onClose, onRemove }) {
+  const rows = [
+    ['Status', p => STATUS_MAP[p.status].label],
+    ['Category', p => p.category],
+    ['Location', p => p.location],
+    ['RERA Number', p => p.reraNumber],
+    ['RERA Status', p => p.reraStatus],
+    ['Launch', p => p.launchDate],
+    ['Handover', p => p.handoverDate],
+    ['Unit Mix', p => p.unitMix],
+    ['Price Range', p => p.priceRange],
+    ['Acres', p => p.acres],
+    ['Towers', p => p.towers],
+    ['Total Units', p => p.units],
+    ['Construction %', p => `${p.constructionPercent}%`],
+    ['Amenities', p => (p.amenities || []).slice(0, 5).join(', ') + (p.amenities?.length > 5 ? '…' : '')],
+  ];
+
+  const exportPDF = async () => {
+    try {
+      const jsPDFmod = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const jsPDF = jsPDFmod.jsPDF || jsPDFmod.default;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      // Header
+      doc.setFillColor(11, 81, 56);
+      doc.rect(0, 0, doc.internal.pageSize.getWidth(), 60, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.text('Gillco Group — Project Comparison', 40, 38);
+      doc.setFontSize(9);
+      doc.setTextColor(201, 162, 75);
+      doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, doc.internal.pageSize.getWidth() - 200, 38);
+
+      const head = [['Attribute', ...projects.map(p => p.name)]];
+      const body = rows.map(([label, fn]) => [label, ...projects.map(p => String(fn(p) ?? '—'))]);
+
+      autoTable(doc, {
+        head, body,
+        startY: 80,
+        theme: 'grid',
+        headStyles: { fillColor: [11, 81, 56], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 245, 238] },
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 6 },
+        columnStyles: { 0: { fontStyle: 'bold', fillColor: [248, 245, 238], textColor: [11, 81, 56] } },
+      });
+
+      const pageH = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text('© Gillco Group · helpdesk@gillcogroup.com · +91 75290 19797', 40, pageH - 20);
+
+      doc.save(`gillco-compare-${Date.now()}.pdf`);
+      toast.success('PDF downloaded');
+    } catch (e) {
+      console.error(e);
+      toast.error('PDF export failed');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm overflow-y-auto">
+      <div className="min-h-screen py-8 px-4 flex items-start justify-center">
+        <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between no-print">
+            <div>
+              <h2 className="font-serif text-3xl text-gillco-green">Compare Projects</h2>
+              <p className="text-sm text-slate-500">Side-by-side comparison of up to 4 projects.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => window.print()} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><Printer className="w-4 h-4" /> Print</button>
+              <button onClick={exportPDF} className="px-4 py-2 bg-gillco-green text-white rounded-full text-sm font-semibold inline-flex items-center gap-2"><Download className="w-4 h-4" /> Export PDF</button>
+              <button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center"><X className="w-5 h-5" /></button>
+            </div>
+          </div>
+
+          {projects.length === 0 ? (
+            <div className="p-12 text-center text-slate-500">No projects selected yet. Choose "Compare" on any project card.</div>
+          ) : (
+            <div className="overflow-x-auto p-6">
+              <table className="w-full min-w-[700px] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left p-3 bg-gillco-cream text-gillco-green text-sm font-semibold w-40">Attribute</th>
+                    {projects.map(p => (
+                      <th key={p.id} className="p-3 bg-gillco-cream text-left align-top min-w-[200px]">
+                        <img src={p.heroImage} alt={p.name} className="w-full h-32 object-cover rounded-lg mb-2" />
+                        <div className="font-serif text-lg text-gillco-green">{p.name}</div>
+                        <div className="text-xs text-slate-500">{p.location}</div>
+                        <button onClick={() => onRemove(p.id)} className="mt-2 text-xs text-red-600 inline-flex items-center gap-1 no-print"><Trash2 className="w-3 h-3" /> Remove</button>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(([label, fn], i) => (
+                    <tr key={label} className={i % 2 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <td className="p-3 text-sm font-medium text-gillco-green">{label}</td>
+                      {projects.map(p => (
+                        <td key={p.id} className="p-3 text-sm text-slate-700">{String(fn(p) ?? '—')}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ ENQUIRY MODAL ============================ */
+function EnquiryModal({ prefill, settings, onClose, projects }) {
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '',
+    projectId: prefill.projectId || '',
+    projectName: prefill.projectName || '',
+    message: '',
+    consent: false,
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const utm = useMemo(() => {
+    if (typeof window === 'undefined') return {};
+    const p = new URLSearchParams(window.location.search);
+    return {
+      utm_source: p.get('utm_source') || 'direct',
+      utm_medium: p.get('utm_medium') || '',
+      utm_campaign: p.get('utm_campaign') || '',
+      referrer: document.referrer || '',
+    };
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.phone) { toast.error('Name and phone are required'); return; }
+    if (!form.consent) { toast.error('Please accept the consent to continue'); return; }
+    setSubmitting(true);
+    try {
+      const proj = projects.find(p => p.id === form.projectId);
+      await api('/enquiries', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          projectName: proj?.name || form.projectName,
+          type: prefill.type || 'general',
+          utm,
+        }),
+      });
+      toast.success('Thank you! Our team will contact you shortly.');
+      onClose();
+    } catch (err) {
+      toast.error('Submission failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const title = {
+    popup: 'Get in Touch',
+    'schedule-visit': 'Schedule a Site Visit',
+    'soft-launch': 'Book Soft Launch',
+    'detail-enquire': 'Project Enquiry',
+    hero: 'Schedule a Visit',
+    sticky: 'Enquire Now',
+    featured: 'Book Soft Launch',
+    header: 'Schedule a Visit',
+    general: 'Enquire Now',
+  }[prefill.type] || 'Enquire Now';
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm overflow-y-auto no-print">
+      <div className="min-h-screen py-8 px-4 flex items-center justify-center">
+        <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
+          <div className="gradient-emerald text-white p-6 relative">
+            <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"><X className="w-4 h-4" /></button>
+            <p className="text-xs tracking-widest text-gillco-gold uppercase font-semibold">Gillco Group</p>
+            <h2 className="font-serif text-3xl mt-1">{title}</h2>
+            <p className="text-sm text-white/80 mt-1">A relationship manager will call within 24 hours.</p>
+          </div>
+          <form onSubmit={submit} className="p-6 space-y-4">
+            <div>
+              <label className="text-xs text-slate-500 uppercase tracking-wider">Full Name *</label>
+              <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none" required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-500 uppercase tracking-wider">Phone *</label>
+                <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none" required />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 uppercase tracking-wider">Email</label>
+                <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 uppercase tracking-wider">Interested In</label>
+              <select value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none">
+                <option value="">Select a project (optional)</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name} — {p.location}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 uppercase tracking-wider">Message</label>
+              <textarea rows={3} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Any specific requirement?" className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none resize-none" />
+            </div>
+            <label className="flex items-start gap-2 text-xs text-slate-600">
+              <input type="checkbox" checked={form.consent} onChange={e => setForm({ ...form, consent: e.target.checked })} className="mt-0.5" />
+              I consent to Gillco Group storing my details to contact me about my enquiry. I understand my data will not be shared with third parties without consent.
+            </label>
+            <button type="submit" disabled={submitting} className="w-full py-3 gradient-emerald text-white rounded-full font-semibold hover:brightness-110 disabled:opacity-50 transition">
+              {submitting ? 'Sending…' : 'Submit Enquiry'}
+            </button>
+            <p className="text-center text-xs text-slate-500">
+              Or call <a className="text-gillco-green font-semibold" href={`tel:${settings?.phone}`}>{settings?.phone}</a>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ ABOUT ============================ */
+function AboutView({ settings }) {
+  return (
+    <section className="py-20 bg-white">
+      <div className="max-w-5xl mx-auto px-4">
+        <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase text-center">Our Legacy</p>
+        <h1 className="font-serif text-5xl md:text-6xl text-gillco-green text-center mt-3">About Gillco Group</h1>
+        <div className="mt-4 text-center">
+          <span className="inline-block text-6xl font-serif text-gillco-gold">25+</span>
+          <p className="text-sm uppercase tracking-widest text-slate-600 mt-1">Years of Excellence</p>
+        </div>
+
+        <div className="mt-12 prose prose-lg max-w-none text-slate-700">
+          <p className="text-xl leading-relaxed">
+            Gillco Group stands as a legacy of trust, disciplined growth, and enduring value, deeply rooted in the ethos of Punjab. Founded in <strong className="text-gillco-green">2001 by Mr. Ranjit Singh Gill and Mrs. Paramjit Gill</strong>, the Group was established with a clear vision — to unlock land potential and create integrated communities for modern India.
+          </p>
+          <p className="mt-6 leading-relaxed">
+            Under the present leadership of <strong className="text-gillco-green">Mr. Tejpreet Singh Gill</strong>, Gillco has evolved into a diversified real estate enterprise, delivering residential and commercial developments defined by quality, reliability, thoughtful design, and long-term value creation for customers and partners — bolstering its position as a leader in North India's real estate landscape.
+          </p>
+        </div>
+
+        {/* Milestones timeline */}
+        <div className="mt-16">
+          <h2 className="font-serif text-3xl text-gillco-green text-center mb-10">A Journey of Milestones</h2>
+          <div className="relative border-l-2 border-gillco-gold ml-4 md:ml-0 md:mx-auto md:max-w-2xl space-y-8 pl-8">
+            {[
+              ['2001', 'Founded', 'Gillco Group founded by Mr. Ranjit Singh Gill and Mrs. Paramjit Gill in Punjab.'],
+              ['2010', 'Gillco Villas', '200 duplex villas delivered in Gillco Valley — an early flagship community.'],
+              ['2015', 'Gillco Parkhills', 'S+19 story high-rise launched on Airport Road, Mohali.'],
+              ['2018', 'Industrial Foray', 'Gillco Industrial Park launched on Airport Road, Mohali.'],
+              ['2024', 'Forbes Recognition', 'Tejpreet Singh Gill recognized in Forbes India Celebrity 100.'],
+              ['2024', 'Meraqui Unveiled', 'Premium ultra-luxe residential development in Sector 126, Mohali.'],
+              ['2026', '11M+ Sq. Ft.', 'Crosses 11 million sq. ft. developed with 1,577+ happy families.'],
+            ].map(([year, title, desc], i) => (
+              <div key={i} className="relative">
+                <span className="absolute -left-[41px] top-1 w-4 h-4 rounded-full bg-gillco-gold ring-4 ring-white" />
+                <div className="text-xs font-semibold text-gillco-gold tracking-widest">{year}</div>
+                <h3 className="font-serif text-2xl text-gillco-green mt-1">{title}</h3>
+                <p className="text-slate-600 mt-1">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Values */}
+        <div className="mt-20 grid md:grid-cols-3 gap-6">
+          {[
+            { icon: ShieldCheck, title: 'Trust', desc: 'Two decades of transparent dealings, RERA-compliant delivery, and long-term stakeholder value.' },
+            { icon: Star, title: 'Quality', desc: 'Uncompromising build quality, thoughtful design, and premium materials in every project.' },
+            { icon: Users, title: 'Community', desc: 'Every project is designed to nurture integrated, livable communities — not just buildings.' },
+          ].map((v, i) => (
+            <div key={i} className="p-8 rounded-2xl bg-gillco-cream border border-gillco-gold/20 text-center">
+              <v.icon className="w-10 h-10 text-gillco-gold mx-auto mb-4" />
+              <h3 className="font-serif text-2xl text-gillco-green">{v.title}</h3>
+              <p className="text-slate-600 mt-2">{v.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================ TEAM ============================ */
+function TeamView({ team }) {
+  return (
+    <section className="py-20 bg-gillco-cream min-h-screen">
+      <div className="max-w-6xl mx-auto px-4">
+        <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase text-center">Leadership</p>
+        <h1 className="font-serif text-5xl text-gillco-green text-center mt-3">Meet the Gill Family</h1>
+        <p className="text-slate-600 text-center mt-3 max-w-2xl mx-auto">The visionaries steering Gillco Group's disciplined growth and community-first ethos.</p>
+        <div className="mt-16 grid md:grid-cols-3 gap-8">
+          {team.map(m => (
+            <div key={m.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition group">
+              <div className="h-72 overflow-hidden bg-slate-100">
+                <img src={m.photo} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+              </div>
+              <div className="p-6">
+                <h3 className="font-serif text-2xl text-gillco-green">{m.name}</h3>
+                <p className="text-xs uppercase tracking-widest text-gillco-gold mt-1 font-semibold">{m.role}</p>
+                <p className="text-sm text-slate-600 mt-4">{m.bio}</p>
+                {m.linkedin && (
+                  <a href={m.linkedin} className="mt-4 text-sm text-gillco-green inline-flex items-center gap-1 hover:gap-2 transition-all">
+                    LinkedIn <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================ NEWS ============================ */
+function NewsView({ news }) {
+  return (
+    <section className="py-20 bg-white min-h-screen">
+      <div className="max-w-5xl mx-auto px-4">
+        <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase text-center">Corporate Spotlight</p>
+        <h1 className="font-serif text-5xl text-gillco-green text-center mt-3">News & Announcements</h1>
+        <div className="mt-12 space-y-4">
+          {news.map(n => (
+            <div key={n.id} className="p-6 bg-gillco-cream rounded-2xl border border-gillco-gold/20 hover:shadow-md transition">
+              <div className="flex items-start gap-4 flex-wrap">
+                <div className="w-24 shrink-0">
+                  <div className="text-gillco-gold text-xs uppercase tracking-widest font-semibold">
+                    {new Date(n.date).toLocaleDateString('en-IN', { month: 'short' })}
+                  </div>
+                  <div className="font-serif text-3xl text-gillco-green">
+                    {new Date(n.date).getFullYear()}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <span className="text-xs bg-gillco-green text-white px-2 py-0.5 rounded-full">{n.category}</span>
+                  <p className="text-slate-800 font-medium leading-relaxed mt-2">{n.title}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================ CONTACT ============================ */
+function ContactView({ settings, onSubmit }) {
+  return (
+    <section className="py-20 bg-white min-h-screen">
+      <div className="max-w-6xl mx-auto px-4">
+        <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase text-center">Get in Touch</p>
+        <h1 className="font-serif text-5xl text-gillco-green text-center mt-3">Contact Us</h1>
+        <div className="grid lg:grid-cols-2 gap-12 mt-16">
+          <div className="space-y-6">
+            <div className="bg-gillco-cream rounded-2xl p-6 border border-gillco-gold/20">
+              <MapPin className="w-8 h-8 text-gillco-gold mb-3" />
+              <h3 className="font-serif text-2xl text-gillco-green">Corporate Office</h3>
+              <p className="text-slate-700 mt-2">{settings?.address}</p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <a href={`tel:${settings?.phone?.replace(/\s/g, '')}`} className="bg-white p-5 rounded-xl border border-slate-200 hover:border-gillco-green transition group">
+                <Phone className="w-6 h-6 text-gillco-gold mb-2" />
+                <div className="text-xs text-slate-500 uppercase">Call</div>
+                <div className="text-gillco-green font-semibold group-hover:underline">{settings?.phone}</div>
+              </a>
+              <a href={`mailto:${settings?.email}`} className="bg-white p-5 rounded-xl border border-slate-200 hover:border-gillco-green transition group">
+                <Mail className="w-6 h-6 text-gillco-gold mb-2" />
+                <div className="text-xs text-slate-500 uppercase">Email</div>
+                <div className="text-gillco-green font-semibold group-hover:underline text-sm">{settings?.email}</div>
+              </a>
+            </div>
+            <a href={`https://wa.me/${settings?.whatsapp}?text=Hi%20Gillco%20Group`} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-5 bg-green-500 hover:bg-green-600 text-white rounded-xl transition">
+              <MessageCircle className="w-6 h-6" />
+              <div>
+                <div className="text-xs uppercase tracking-wider opacity-90">WhatsApp</div>
+                <div className="font-semibold">Chat with our sales team</div>
+              </div>
+              <ArrowRight className="w-5 h-5 ml-auto" />
+            </a>
+
+            {/* Map placeholder */}
+            <div className="rounded-2xl overflow-hidden shadow border border-slate-200 aspect-video">
+              <iframe
+                title="Gillco Group Location"
+                src="https://www.google.com/maps?q=Gillco+Group+Mohali+Airport+Road&output=embed"
+                className="w-full h-full"
+                loading="lazy"
+              />
+            </div>
+          </div>
+
+          <div className="bg-gillco-cream rounded-2xl p-8 border border-gillco-gold/20">
+            <h3 className="font-serif text-3xl text-gillco-green">Fill the Form</h3>
+            <p className="text-sm text-slate-600 mt-1">A relationship manager will reach out within 24 hours.</p>
+            <button onClick={() => onSubmit({ type: 'contact-page' })} className="mt-6 w-full py-4 gradient-emerald text-white rounded-full font-semibold">
+              Open Enquiry Form
+            </button>
+            <div className="mt-8 pt-8 border-t border-slate-200 space-y-3 text-sm">
+              <p className="text-slate-600"><strong className="text-gillco-green">Sales:</strong> {settings?.phone}</p>
+              <p className="text-slate-600"><strong className="text-gillco-green">Support:</strong> {settings?.email}</p>
+              <p className="text-slate-600"><strong className="text-gillco-green">Hours:</strong> Mon–Sat, 10:00 AM – 7:00 PM</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================ ADMIN (CMS) ============================ */
+function AdminView({ projects, setProjects, settings, setSettings, news, setNews }) {
+  const [authed, setAuthed] = useState(false);
+  const [pass, setPass] = useState('');
+  const [tab, setTab] = useState('projects');
+  const [editing, setEditing] = useState(null);
+  const [enquiries, setEnquiries] = useState([]);
+
+  useEffect(() => { if (authed && tab === 'enquiries') api('/enquiries').then(setEnquiries).catch(() => {}); }, [authed, tab]);
+
+  const login = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api('/admin/login', { method: 'POST', body: JSON.stringify({ password: pass }) });
+      if (r.ok) { setAuthed(true); toast.success('Welcome, admin'); }
+    } catch { toast.error('Invalid password'); }
+  };
+
+  const saveProject = async (p) => {
+    try {
+      const updated = await api(`/projects/${p.id}`, { method: 'PUT', body: JSON.stringify(p) });
+      setProjects(prev => prev.map(x => x.id === updated.id ? updated : x));
+      setEditing(null);
+      toast.success('Project updated');
+    } catch { toast.error('Save failed'); }
+  };
+
+  const saveSettings = async (s) => {
+    try {
+      const updated = await api('/settings', { method: 'PUT', body: JSON.stringify(s) });
+      setSettings(updated);
+      toast.success('Settings saved');
+    } catch { toast.error('Save failed'); }
+  };
+
+  if (!authed) {
+    return (
+      <section className="py-24 bg-gillco-cream min-h-screen">
+        <div className="max-w-md mx-auto px-4">
+          <div className="bg-white rounded-2xl p-8 shadow border border-gillco-gold/20">
+            <ShieldCheck className="w-10 h-10 text-gillco-gold mx-auto" />
+            <h1 className="font-serif text-3xl text-gillco-green text-center mt-4">Admin Login</h1>
+            <p className="text-center text-sm text-slate-500 mt-2">Content management for Gillco Group.</p>
+            <form onSubmit={login} className="mt-6 space-y-3">
+              <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Admin password" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
+              <button className="w-full py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center justify-center gap-2"><LogIn className="w-4 h-4" /> Sign In</button>
+              <p className="text-xs text-center text-slate-400 mt-2">Default password: <code className="bg-slate-100 px-1 py-0.5 rounded">gillco2025</code></p>
+            </form>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="py-12 bg-gillco-cream min-h-screen">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+          <div>
+            <h1 className="font-serif text-4xl text-gillco-green">Admin Panel</h1>
+            <p className="text-sm text-slate-500">Manage projects, RERA updates, enquiries & site settings.</p>
+          </div>
+          <button onClick={() => setAuthed(false)} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
+        </div>
+
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {['projects', 'settings', 'enquiries'].map(t => (
+            <button key={t} onClick={() => setTab(t)} className={`px-5 py-2 rounded-full text-sm font-medium capitalize ${tab === t ? 'bg-gillco-green text-white' : 'bg-white text-slate-700 border border-slate-200'}`}>{t}</button>
+          ))}
+        </div>
+
+        {tab === 'projects' && (
+          <div className="space-y-3">
+            {projects.map(p => (
+              <div key={p.id} className="bg-white rounded-xl p-4 border border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4">
+                  <img src={p.heroImage} className="w-20 h-16 object-cover rounded" alt="" />
+                  <div>
+                    <div className="font-serif text-xl text-gillco-green">{p.name}</div>
+                    <div className="text-xs text-slate-500">{p.location} · {p.reraNumber}</div>
+                    <div className="text-xs mt-1"><span className={`px-2 py-0.5 rounded-full text-white text-[10px] ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span></div>
+                  </div>
+                </div>
+                <button onClick={() => setEditing(p)} className="px-4 py-2 bg-gillco-green text-white rounded-full text-sm inline-flex items-center gap-2"><Edit3 className="w-3 h-3" /> Edit</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === 'settings' && settings && (
+          <SettingsEditor settings={settings} onSave={saveSettings} />
+        )}
+
+        {tab === 'enquiries' && (
+          <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gillco-cream">
+                <tr><th className="text-left p-3">Date</th><th className="text-left p-3">Name</th><th className="text-left p-3">Phone</th><th className="text-left p-3">Email</th><th className="text-left p-3">Project</th><th className="text-left p-3">Source</th></tr>
+              </thead>
+              <tbody>
+                {enquiries.length === 0 ? (
+                  <tr><td colSpan={6} className="p-8 text-center text-slate-500">No enquiries yet.</td></tr>
+                ) : enquiries.map(e => (
+                  <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="p-3 text-xs">{new Date(e.createdAt).toLocaleString('en-IN')}</td>
+                    <td className="p-3 font-medium">{e.name}</td>
+                    <td className="p-3">{e.phone}</td>
+                    <td className="p-3">{e.email || '—'}</td>
+                    <td className="p-3">{e.projectName || '—'}</td>
+                    <td className="p-3"><span className="text-xs bg-gillco-cream text-gillco-green px-2 py-0.5 rounded-full">{e.type}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {editing && <ProjectEditor project={editing} onSave={saveProject} onClose={() => setEditing(null)} />}
+      </div>
+    </section>
+  );
+}
+
+function SettingsEditor({ settings, onSave }) {
+  const [s, setS] = useState(settings);
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
+      <h3 className="font-serif text-2xl text-gillco-green">Site Settings</h3>
+      <div className="grid md:grid-cols-2 gap-4">
+        <Field label="Brand Name" value={s.brandName} onChange={v => setS({ ...s, brandName: v })} />
+        <Field label="Tagline" value={s.tagline} onChange={v => setS({ ...s, tagline: v })} />
+        <Field label="Phone" value={s.phone} onChange={v => setS({ ...s, phone: v })} />
+        <Field label="WhatsApp (digits only)" value={s.whatsapp} onChange={v => setS({ ...s, whatsapp: v })} />
+        <Field label="Email" value={s.email} onChange={v => setS({ ...s, email: v })} />
+        <Field label="Address" value={s.address} onChange={v => setS({ ...s, address: v })} />
+      </div>
+      <h4 className="font-serif text-xl text-gillco-green mt-4">Popup Form Config</h4>
+      <div className="grid md:grid-cols-3 gap-4">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={s.popup?.enabled} onChange={e => setS({ ...s, popup: { ...s.popup, enabled: e.target.checked } })} />
+          Enable popup
+        </label>
+        <Field label="Delay (seconds)" type="number" value={s.popup?.delaySeconds} onChange={v => setS({ ...s, popup: { ...s.popup, delaySeconds: Number(v) } })} />
+        <Field label="Cookie Suppression (hours)" type="number" value={s.popup?.cookieHours} onChange={v => setS({ ...s, popup: { ...s.popup, cookieHours: Number(v) } })} />
+      </div>
+      <button onClick={() => onSave(s)} className="mt-4 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save Settings</button>
+    </div>
+  );
+}
+
+function ProjectEditor({ project, onSave, onClose }) {
+  const [p, setP] = useState(project);
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 overflow-y-auto flex items-start justify-center p-4">
+      <div className="bg-white max-w-3xl w-full rounded-2xl p-6 my-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-serif text-2xl text-gillco-green">Edit: {project.name}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <Field label="Name" value={p.name} onChange={v => setP({ ...p, name: v })} />
+          <Field label="Location" value={p.location} onChange={v => setP({ ...p, location: v })} />
+          <div>
+            <label className="text-xs text-slate-500 uppercase">Status</label>
+            <select value={p.status} onChange={e => setP({ ...p, status: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg">
+              <option value="delivered">Delivered</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="upcoming">Upcoming</option>
+            </select>
+          </div>
+          <Field label="Category" value={p.category} onChange={v => setP({ ...p, category: v })} />
+          <Field label="RERA Number" value={p.reraNumber} onChange={v => setP({ ...p, reraNumber: v })} />
+          <Field label="RERA Status" value={p.reraStatus} onChange={v => setP({ ...p, reraStatus: v })} />
+          <Field label="RERA Updated (YYYY-MM-DD)" value={p.reraUpdatedAt} onChange={v => setP({ ...p, reraUpdatedAt: v })} />
+          <Field label="Construction %" type="number" value={p.constructionPercent} onChange={v => setP({ ...p, constructionPercent: Number(v) })} />
+          <Field label="Unit Mix" value={p.unitMix} onChange={v => setP({ ...p, unitMix: v })} />
+          <Field label="Price Range" value={p.priceRange} onChange={v => setP({ ...p, priceRange: v })} />
+          <Field label="Hero Image URL" value={p.heroImage} onChange={v => setP({ ...p, heroImage: v })} />
+          <Field label="Tagline" value={p.tagline} onChange={v => setP({ ...p, tagline: v })} />
+        </div>
+        <div className="mt-4">
+          <label className="text-xs text-slate-500 uppercase">Summary</label>
+          <textarea value={p.summary} onChange={e => setP({ ...p, summary: e.target.value })} rows={3} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
+        </div>
+        <button onClick={() => onSave(p)} className="mt-6 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save Project</button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type = 'text' }) {
+  return (
+    <div>
+      <label className="text-xs text-slate-500 uppercase tracking-wider">{label}</label>
+      <input type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-gillco-green outline-none" />
+    </div>
+  );
+}
+
+/* ============================ FOOTER ============================ */
+function Footer({ settings, goTo }) {
+  return (
+    <footer className="bg-gillco-green-dark text-white pt-16 pb-8 no-print">
+      <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-10">
+        <div className="md:col-span-2">
+          <img src={GILLCO_LOGO_WHITE} alt="Gillco Group" className="h-14 mb-4" />
+          <p className="text-white/70 leading-relaxed max-w-md">
+            Punjab's leading luxury real estate developer since 2001. Curating legacy spaces with modern design.
+          </p>
+          <div className="mt-6 space-y-2 text-sm">
+            <a href={`tel:${settings?.phone}`} className="flex items-center gap-2 text-white/80 hover:text-gillco-gold"><Phone className="w-4 h-4" /> {settings?.phone}</a>
+            <a href={`mailto:${settings?.email}`} className="flex items-center gap-2 text-white/80 hover:text-gillco-gold"><Mail className="w-4 h-4" /> {settings?.email}</a>
+            <p className="flex items-start gap-2 text-white/80"><MapPin className="w-4 h-4 mt-0.5" /> {settings?.address}</p>
+          </div>
+        </div>
+        <div>
+          <h4 className="text-gillco-gold font-semibold uppercase text-sm tracking-widest mb-4">Explore</h4>
+          <ul className="space-y-2 text-white/80 text-sm">
+            <li><button onClick={() => goTo('about')} className="hover:text-gillco-gold">Legacy</button></li>
+            <li><button onClick={() => goTo('projects')} className="hover:text-gillco-gold">Projects</button></li>
+            <li><button onClick={() => goTo('team')} className="hover:text-gillco-gold">Team</button></li>
+            <li><button onClick={() => goTo('news')} className="hover:text-gillco-gold">Spotlight</button></li>
+            <li><button onClick={() => goTo('contact')} className="hover:text-gillco-gold">Contact</button></li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="text-gillco-gold font-semibold uppercase text-sm tracking-widest mb-4">Projects</h4>
+          <ul className="space-y-2 text-white/80 text-sm">
+            <li><button onClick={() => goTo('upcoming')} className="hover:text-gillco-gold">Soft Launch</button></li>
+            <li><button onClick={() => goTo('ongoing')} className="hover:text-gillco-gold">Ongoing</button></li>
+            <li><button onClick={() => goTo('delivered')} className="hover:text-gillco-gold">Delivered</button></li>
+            <li><button onClick={() => goTo('admin')} className="hover:text-gillco-gold">Admin CMS</button></li>
+          </ul>
+        </div>
+      </div>
+      <div className="max-w-7xl mx-auto px-4 mt-12 pt-6 border-t border-white/10 flex items-center justify-between flex-wrap gap-3 text-xs text-white/60">
+        <p>© {new Date().getFullYear()} Gillco Group. All rights reserved.</p>
+        <p>Established 2001 · Punjab, India</p>
+      </div>
+    </footer>
+  );
+}
+
+export default App;
