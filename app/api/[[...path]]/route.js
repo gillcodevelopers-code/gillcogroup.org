@@ -380,6 +380,10 @@ async function handleRoute(request, { params }) {
 
     // ---------- UPLOAD ----------
     if (route === '/upload' && method === 'POST') {
+      const ct = (request.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('multipart/form-data')) {
+        return cors(NextResponse.json({ error: 'expected multipart/form-data' }, { status: 400 }));
+      }
       const formData = await request.formData();
       const file = formData.get('file');
       if (!file || typeof file === 'string') {
