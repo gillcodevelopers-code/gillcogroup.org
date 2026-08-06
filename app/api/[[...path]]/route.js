@@ -27,7 +27,7 @@ function cors(res) {
 
 function strip(doc) {
   if (!doc) return doc;
-  const { _id, ...rest } = doc;
+  const { _id, _seedVersion, ...rest } = doc;
   return rest;
 }
 
@@ -291,12 +291,31 @@ const SEED_SETTINGS = {
   founded: 2001,
   stats: { years: 25, projects: 8, families: 1577, sqft: '11M+' },
   popup: { enabled: true, delaySeconds: 6, cookieHours: 24 },
+  social: {
+    facebook: 'https://www.facebook.com/gillcogroup',
+    instagram: 'https://www.instagram.com/gillcogroup',
+    linkedin: 'https://www.linkedin.com/company/gillcogroup',
+    youtube: 'https://www.youtube.com/@gillcogroup',
+    twitter: 'https://x.com/gillcogroup',
+  },
+  videos: [
+    { id: 'v1', title: 'Gillco Meraqui — Ultra Luxe Living', poster: 'https://www.gillcogroup.com/assets/meraqui/poolCam.jpeg', youtubeId: 'dQw4w9WgXcQ' },
+    { id: 'v2', title: 'Gillco Meraqui — Clubhouse Walkthrough', poster: 'https://www.gillcogroup.com/assets/meraqui/clubCam.jpeg', youtubeId: 'dQw4w9WgXcQ' },
+    { id: 'v3', title: 'Gillco Industrial Park — 200 Acres', poster: 'https://www.gillcogroup.com/assets/industrialPark/1.png', youtubeId: 'dQw4w9WgXcQ' },
+  ],
   hero: {
     headline: 'Curating Legacy Spaces\nWith Modern Design',
     subline: "Punjab's leading luxury real estate developer. Building trust, communities and enduring value since 2001.",
     slides: [
       { image: 'https://www.gillcogroup.com/assets/meraqui/1.jpg', title: 'Gillco Meraqui', subtitle: 'Ultra Luxe Residential — Sector 126, Mohali' },
+      { image: 'https://www.gillcogroup.com/assets/meraqui/poolCam.jpeg', title: 'Meraqui Infinity Pool', subtitle: 'Resort-style aquatic experience' },
+      { image: 'https://www.gillcogroup.com/assets/meraqui/clubCam.jpeg', title: 'Meraqui Elite Clubhouse', subtitle: 'Curated for the connoisseur' },
+      { image: 'https://www.gillcogroup.com/assets/meraqui/yogaCamTerrace.jpeg', title: 'Meraqui Yoga Terrace', subtitle: 'Serenity above the skyline' },
+      { image: 'https://www.gillcogroup.com/assets/meraqui/gardenView.png', title: 'Meraqui Landscaped Greens', subtitle: 'Nature woven into every corner' },
       { image: 'https://www.gillcogroup.com/assets/parkhill/1.png', title: 'Gillco Parkhills', subtitle: "Mohali's Finest High-Rise — Airport Road" },
+      { image: 'https://www.gillcogroup.com/assets/palm/1.png', title: 'Gillco Palms', subtitle: 'Comfort Meets Elegance — Kharar-Landran' },
+      { image: 'https://www.gillcogroup.com/assets/tower/tower.jpg', title: 'Gillco Towers', subtitle: 'Spacious Contemporary Design — Sector 127' },
+      { image: 'https://www.gillcogroup.com/assets/height/height.jpg', title: 'Gillco Heights', subtitle: 'Designed for Modern Families' },
       { image: 'https://www.gillcogroup.com/assets/industrialPark/1.png', title: 'Gillco Industrial Park', subtitle: '200 Acres of Operational Excellence' },
     ],
   },
@@ -311,7 +330,24 @@ async function ensureSeed(db) {
   const tCount = await db.collection('team').countDocuments();
   if (tCount === 0) await db.collection('team').insertMany(SEED_TEAM.map(t => ({ ...t })));
   const s = await db.collection('settings').findOne({ id: 'site' });
-  if (!s) await db.collection('settings').insertOne({ ...SEED_SETTINGS });
+  if (!s) {
+    await db.collection('settings').insertOne({ ...SEED_SETTINGS, _seedVersion: 2 });
+  } else if (!s._seedVersion || s._seedVersion < 2) {
+    // Merge new keys (social, videos, expanded slides) without wiping edits to core fields
+    const merged = {
+      ...SEED_SETTINGS,
+      ...s,
+      social: s.social || SEED_SETTINGS.social,
+      videos: s.videos || SEED_SETTINGS.videos,
+      hero: {
+        ...SEED_SETTINGS.hero,
+        ...(s.hero || {}),
+        slides: (s.hero?.slides && s.hero.slides.length >= 10) ? s.hero.slides : SEED_SETTINGS.hero.slides,
+      },
+      _seedVersion: 2,
+    };
+    await db.collection('settings').updateOne({ id: 'site' }, { $set: merged });
+  }
   seeded = true;
 }
 

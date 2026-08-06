@@ -7,6 +7,7 @@ import {
   Search, ArrowRight, Award, Building2, Users, LandPlot, Home as HomeIcon,
   Calendar, CheckCircle2, Clock, Sparkles, Download, Printer, Trash2, Plus,
   Edit3, Save, LogIn, LogOut, Filter, Star, ExternalLink, ShieldCheck,
+  Play, Facebook, Instagram, Linkedin, Youtube, Twitter,
 } from 'lucide-react';
 
 /* ---------- helpers ---------- */
@@ -238,7 +239,7 @@ function App() {
   const [showCompare, setShowCompare] = useState(false);
   const [showEnquiry, setShowEnquiry] = useState(false);
   const [enquiryPrefill, setEnquiryPrefill] = useState({});
-  const [popupShown, setPopupShown] = useState(false);
+  const [showVideo, setShowVideo] = useState(null);
 
   const [mobileNav, setMobileNav] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -269,22 +270,27 @@ function App() {
   }, []);
 
   /* -------- popup enquiry (configurable) -------- */
+  const popupRef = useRef(false);
   useEffect(() => {
-    if (!settings?.popup?.enabled || popupShown) return;
+    if (!settings?.popup?.enabled) return;
+    if (popupRef.current) return;
     const cookieName = 'gillco_popup_seen';
-    const seen = document.cookie.includes(`${cookieName}=1`);
-    if (seen) return;
+    if (typeof document !== 'undefined' && document.cookie.includes(`${cookieName}=1`)) {
+      popupRef.current = true;
+      return;
+    }
     const t = setTimeout(() => {
+      if (popupRef.current) return;
+      popupRef.current = true;
       setShowEnquiry(true);
       setEnquiryPrefill({ type: 'popup' });
-      setPopupShown(true);
       const hrs = settings.popup.cookieHours || 24;
       const d = new Date();
       d.setTime(d.getTime() + hrs * 60 * 60 * 1000);
       document.cookie = `${cookieName}=1; expires=${d.toUTCString()}; path=/`;
     }, (settings.popup.delaySeconds || 6) * 1000);
     return () => clearTimeout(t);
-  }, [settings, popupShown]);
+  }, [settings]);
 
   const filtered = useMemo(() => {
     return projects.filter(p => {
@@ -342,6 +348,7 @@ function App() {
           goTo={goTo}
           onCompareToggle={toggleCompare}
           compare={compare}
+          onVideo={setShowVideo}
         />
       )}
       {view === 'projects' && (
@@ -431,6 +438,10 @@ function App() {
           projects={projects}
         />
       )}
+
+      {showVideo && (
+        <VideoModal video={showVideo} onClose={() => setShowVideo(null)} />
+      )}
     </div>
   );
 }
@@ -461,9 +472,26 @@ function Header({ settings, view, goTo, mobileNav, setMobileNav, onEnquire }) {
               <Mail className="w-3 h-3" /> {settings?.email}
             </a>
           </div>
-          <a href={`https://wa.me/${settings?.whatsapp}`} target="_blank" rel="noreferrer" className="hidden md:flex items-center gap-1.5 hover:text-gillco-gold transition">
-            <MessageCircle className="w-3 h-3" /> Chat on WhatsApp
-          </a>
+          <div className="flex items-center gap-3">
+            {settings?.social?.facebook && (
+              <a href={settings.social.facebook} target="_blank" rel="noreferrer" className="hover:text-gillco-gold transition" title="Facebook"><Facebook className="w-3.5 h-3.5" /></a>
+            )}
+            {settings?.social?.instagram && (
+              <a href={settings.social.instagram} target="_blank" rel="noreferrer" className="hover:text-gillco-gold transition" title="Instagram"><Instagram className="w-3.5 h-3.5" /></a>
+            )}
+            {settings?.social?.linkedin && (
+              <a href={settings.social.linkedin} target="_blank" rel="noreferrer" className="hover:text-gillco-gold transition" title="LinkedIn"><Linkedin className="w-3.5 h-3.5" /></a>
+            )}
+            {settings?.social?.youtube && (
+              <a href={settings.social.youtube} target="_blank" rel="noreferrer" className="hover:text-gillco-gold transition" title="YouTube"><Youtube className="w-3.5 h-3.5" /></a>
+            )}
+            {settings?.social?.twitter && (
+              <a href={settings.social.twitter} target="_blank" rel="noreferrer" className="hover:text-gillco-gold transition" title="X (Twitter)"><Twitter className="w-3.5 h-3.5" /></a>
+            )}
+            <a href={`https://wa.me/${settings?.whatsapp}`} target="_blank" rel="noreferrer" className="hidden md:flex items-center gap-1.5 hover:text-gillco-gold transition ml-2 pl-3 border-l border-white/20">
+              <MessageCircle className="w-3 h-3" /> WhatsApp
+            </a>
+          </div>
         </div>
       </div>
 
@@ -509,40 +537,65 @@ function Header({ settings, view, goTo, mobileNav, setMobileNav, onEnquire }) {
 }
 
 /* ============================ HOME ============================ */
-function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onCompareToggle, compare }) {
+function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onCompareToggle, compare, onVideo }) {
   const featured = projects.find(p => p.slug === 'meraqui') || projects[0];
-  const reraCards = projects.filter(p => p.featured || p.status === 'upcoming' || p.status === 'ongoing').slice(0, 3);
+  const reraCards = useMemo(() => {
+    const order = { upcoming: 0, ongoing: 1, delivered: 2 };
+    return [...projects].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9)).slice(0, 3);
+  }, [projects]);
 
   return (
     <>
       <Hero settings={settings} onEnquire={onEnquire} goTo={goTo} />
 
-      {/* RERA quick cards */}
-      <section className="py-12 bg-gillco-cream">
+      {/* RERA quick cards — enhanced with imagery */}
+      <section className="py-16 bg-gillco-cream">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-8">
-            <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">RERA Compliance</p>
-            <h2 className="font-serif text-3xl md:text-4xl text-gillco-green mt-2">Latest RERA Status Updates</h2>
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 bg-white border border-gillco-gold/40 rounded-full px-4 py-1.5">
+              <ShieldCheck className="w-4 h-4 text-gillco-gold" />
+              <p className="text-xs tracking-[0.3em] text-gillco-green font-semibold uppercase">RERA Compliance</p>
+            </div>
+            <h2 className="font-serif text-3xl md:text-5xl text-gillco-green mt-4">Latest RERA Status Updates</h2>
+            <p className="text-slate-600 mt-3 max-w-xl mx-auto">Live, transparent RERA registration & construction status for every Gillco township.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {reraCards.map(p => (
-              <div key={p.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-lg transition">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>
-                    <h3 className="mt-3 font-serif text-2xl text-gillco-green">{p.name}</h3>
-                    <p className="text-sm text-slate-500 mt-1">{p.location}</p>
+              <div key={p.id} className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer" onClick={() => onProject(p)}>
+                {/* Image with gradient */}
+                <div className="relative h-56">
+                  <img src={p.heroImage} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-gillco-green/60 to-transparent" />
+                  <span className={`absolute top-4 left-4 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>
+                  <div className="absolute bottom-3 left-4 right-4 text-white">
+                    <h3 className="font-serif text-2xl leading-tight">{p.name}</h3>
+                    <p className="text-xs text-white/80 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {p.location}</p>
                   </div>
-                  <ShieldCheck className="w-8 h-8 text-gillco-gold shrink-0" />
+                  <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gillco-gold/95 backdrop-blur flex items-center justify-center text-slate-900 shadow-lg">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
                 </div>
-                <div className="border-t border-slate-100 pt-3 mt-3 space-y-1.5 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-500">RERA No.</span><span className="font-mono text-slate-800">{p.reraNumber}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Status</span><span className="text-emerald-700 font-medium">{p.reraStatus}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Updated</span><span className="text-slate-800">{new Date(p.reraUpdatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></div>
+                {/* RERA panel */}
+                <div className="bg-white p-5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">RERA Reg. Number</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">VERIFIED</span>
+                  </div>
+                  <div className="font-mono text-sm text-gillco-green font-bold tracking-wide bg-gillco-cream px-3 py-2 rounded-lg border border-gillco-gold/30">{p.reraNumber}</div>
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <div>
+                      <div className="text-[10px] text-slate-500 uppercase">Status</div>
+                      <div className="text-xs text-emerald-700 font-semibold">{p.reraStatus}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-slate-500 uppercase">Updated</div>
+                      <div className="text-xs text-slate-800 font-medium">{new Date(p.reraUpdatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                    </div>
+                  </div>
+                  <button className="w-full mt-3 py-2 bg-gillco-green group-hover:bg-gillco-gold group-hover:text-slate-900 text-white text-sm font-semibold rounded-full transition inline-flex items-center justify-center gap-2">
+                    View Full RERA Details <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
-                <button onClick={() => onProject(p)} className="mt-4 text-gillco-green font-semibold text-sm inline-flex items-center gap-1 hover:gap-2 transition-all">
-                  View Details <ArrowRight className="w-4 h-4" />
-                </button>
               </div>
             ))}
           </div>
@@ -600,6 +653,36 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Videos & Virtual Tours */}
+      {settings?.videos?.length > 0 && (
+        <section className="py-20 bg-white">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="text-center mb-12">
+              <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Video Walkthroughs</p>
+              <h2 className="font-serif text-4xl md:text-5xl text-gillco-green mt-3">Experience Gillco in Motion</h2>
+              <p className="text-slate-600 mt-3 max-w-xl mx-auto">Take a cinematic walk through our developments — from clubhouses to aerial views.</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              {settings.videos.map(v => (
+                <button key={v.id} onClick={() => onVideo(v)} className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all">
+                  <img src={v.poster} alt={v.title} className="w-full h-64 object-cover group-hover:scale-110 transition duration-700" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-transparent to-transparent" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-full bg-gillco-gold/90 backdrop-blur flex items-center justify-center shadow-2xl group-hover:scale-110 transition ring-4 ring-white/30">
+                      <Play className="w-8 h-8 text-slate-900 ml-1" fill="currentColor" />
+                    </div>
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4 text-left text-white">
+                    <p className="text-xs uppercase tracking-widest text-gillco-gold font-semibold">Walkthrough</p>
+                    <h3 className="font-serif text-xl mt-1">{v.title}</h3>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         </section>
@@ -1146,6 +1229,42 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
   );
 }
 
+/* ============================ VIDEO MODAL ============================ */
+function VideoModal({ video, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-y-auto no-print flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-5xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-white">
+            <p className="text-xs uppercase tracking-widest text-gillco-gold font-semibold">Gillco Group · Walkthrough</p>
+            <h3 className="font-serif text-2xl mt-1">{video.title}</h3>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="aspect-video w-full rounded-2xl overflow-hidden shadow-2xl bg-black">
+          {video.youtubeId ? (
+            <iframe
+              className="w-full h-full"
+              src={`https://www.youtube.com/embed/${video.youtubeId}?autoplay=1&rel=0`}
+              title={video.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white">
+              <img src={video.poster} alt={video.title} className="w-full h-full object-cover opacity-60" />
+              <div className="absolute text-center">
+                <p className="text-lg">Video coming soon</p>
+                <p className="text-sm text-white/60 mt-1">Contact us for a personalized walkthrough</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================ ABOUT ============================ */
 function AboutView({ settings }) {
   return (
@@ -1153,9 +1272,9 @@ function AboutView({ settings }) {
       <div className="max-w-5xl mx-auto px-4">
         <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase text-center">Our Legacy</p>
         <h1 className="font-serif text-5xl md:text-6xl text-gillco-green text-center mt-3">About Gillco Group</h1>
-        <div className="mt-4 text-center">
-          <span className="inline-block text-6xl font-serif text-gillco-gold">25+</span>
-          <p className="text-sm uppercase tracking-widest text-slate-600 mt-1">Years of Excellence</p>
+        <div className="mt-6 text-center">
+          <p className="font-serif text-6xl md:text-7xl text-gillco-gold font-semibold">25+ Years of Excellence</p>
+          <p className="text-sm uppercase tracking-widest text-slate-600 mt-3">A quarter-century of building communities</p>
         </div>
 
         <div className="mt-12 prose prose-lg max-w-none text-slate-700">

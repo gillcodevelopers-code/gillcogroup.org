@@ -44,7 +44,7 @@
   .gradient-emerald { background: linear-gradient(135deg, #0b5138 0%, #063a27 100%); }
   .gradient-gold { background: linear-gradient(135deg, #d4b062 0%, #a88434 100%); }
   .text-gradient-gold { background: linear-gradient(135deg, #d4b062 0%, #a88434 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .hero-overlay { background: linear-gradient(180deg, rgba(6,58,39,0.35) 0%, rgba(6,58,39,0.75) 100%); }
+  .hero-overlay { background: linear-gradient(180deg, rgba(6,58,39,0.15) 0%, rgba(6,58,39,0.65) 100%); }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
