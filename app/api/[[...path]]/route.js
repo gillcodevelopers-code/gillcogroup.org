@@ -448,6 +448,14 @@ async function handleRoute(request, { params }) {
       await db.collection('news').insertOne(doc);
       return cors(NextResponse.json(strip(doc)));
     }
+    if (route.startsWith('/news/') && method === 'PUT') {
+      const id = route.split('/')[2];
+      const body = await request.json();
+      delete body._id;
+      await db.collection('news').updateOne({ id }, { $set: body });
+      const doc = await db.collection('news').findOne({ id });
+      return cors(NextResponse.json(strip(doc)));
+    }
     if (route.startsWith('/news/') && method === 'DELETE') {
       const id = route.split('/')[2];
       await db.collection('news').deleteOne({ id });
@@ -458,6 +466,25 @@ async function handleRoute(request, { params }) {
     if (route === '/team' && method === 'GET') {
       const items = await db.collection('team').find({}).toArray();
       return cors(NextResponse.json(items.map(strip)));
+    }
+    if (route === '/team' && method === 'POST') {
+      const body = await request.json();
+      const doc = { id: uuidv4(), ...body };
+      await db.collection('team').insertOne(doc);
+      return cors(NextResponse.json(strip(doc)));
+    }
+    if (route.startsWith('/team/') && method === 'PUT') {
+      const id = route.split('/')[2];
+      const body = await request.json();
+      delete body._id;
+      await db.collection('team').updateOne({ id }, { $set: body });
+      const doc = await db.collection('team').findOne({ id });
+      return cors(NextResponse.json(strip(doc)));
+    }
+    if (route.startsWith('/team/') && method === 'DELETE') {
+      const id = route.split('/')[2];
+      await db.collection('team').deleteOne({ id });
+      return cors(NextResponse.json({ ok: true }));
     }
 
     // ---------- ADMIN AUTH (simple passcode) ----------

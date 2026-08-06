@@ -1463,8 +1463,10 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
   const [tab, setTab] = useState('projects');
   const [editing, setEditing] = useState(null);
   const [enquiries, setEnquiries] = useState([]);
+  const [team, setTeam] = useState([]);
 
   useEffect(() => { if (authed && tab === 'enquiries') api('/enquiries').then(setEnquiries).catch(() => {}); }, [authed, tab]);
+  useEffect(() => { if (authed) api('/team').then(setTeam).catch(() => {}); }, [authed]);
 
   const login = async (e) => {
     e.preventDefault();
@@ -1481,6 +1483,20 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
       setEditing(null);
       toast.success('Project updated');
     } catch { toast.error('Save failed'); }
+  };
+
+  const createProject = async () => {
+    const doc = { name: 'New Project', slug: `new-${Date.now()}`, status: 'upcoming', category: 'residential', location: '', reraNumber: '', reraStatus: '', reraUpdatedAt: new Date().toISOString().slice(0, 10), constructionPercent: 0, launchDate: '', handoverDate: '', priceRange: 'On Request', unitMix: '', acres: 0, towers: 0, units: 0, heroImage: '', gallery: [], summary: '', amenities: [], milestones: [], tagline: '', brochureUrl: '' };
+    const created = await api('/projects', { method: 'POST', body: JSON.stringify(doc) });
+    setProjects(prev => [created, ...prev]);
+    setEditing(created);
+  };
+
+  const deleteProject = async (id) => {
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+    await api(`/projects/${id}`, { method: 'DELETE' });
+    setProjects(prev => prev.filter(x => x.id !== id));
+    toast.success('Deleted');
   };
 
   const saveSettings = async (s) => {
@@ -1510,45 +1526,74 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     );
   }
 
+  const tabs = [
+    { id: 'projects', label: 'Projects' },
+    { id: 'hero', label: 'Hero Slides' },
+    { id: 'videos', label: 'Videos' },
+    { id: 'news', label: 'News' },
+    { id: 'team', label: 'Team' },
+    { id: 'settings', label: 'Site & Brand' },
+    { id: 'enquiries', label: 'Enquiries' },
+  ];
+
   return (
     <section className="py-12 bg-gillco-cream min-h-screen">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
           <div>
-            <h1 className="font-serif text-4xl text-gillco-green">Admin Panel</h1>
-            <p className="text-sm text-slate-500">Manage projects, RERA updates, enquiries & site settings.</p>
+            <h1 className="font-serif text-4xl text-gillco-green">Content Manager</h1>
+            <p className="text-sm text-slate-500">Edit every piece of content on the site — no code needed.</p>
           </div>
           <button onClick={() => setAuthed(false)} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">
-          {['projects', 'settings', 'enquiries'].map(t => (
-            <button key={t} onClick={() => setTab(t)} className={`px-5 py-2 rounded-full text-sm font-medium capitalize ${tab === t ? 'bg-gillco-green text-white' : 'bg-white text-slate-700 border border-slate-200'}`}>{t}</button>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} className={`px-5 py-2 rounded-full text-sm font-medium ${tab === t.id ? 'bg-gillco-green text-white' : 'bg-white text-slate-700 border border-slate-200'}`}>{t.label}</button>
           ))}
         </div>
 
         {tab === 'projects' && (
-          <div className="space-y-3">
-            {projects.map(p => (
-              <div key={p.id} className="bg-white rounded-xl p-4 border border-slate-100 flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-4">
-                  <img src={p.heroImage} className="w-20 h-16 object-cover rounded" alt="" />
-                  <div>
-                    <div className="font-serif text-xl text-gillco-green">{p.name}</div>
-                    <div className="text-xs text-slate-500">{p.location} · {p.reraNumber}</div>
-                    <div className="text-xs mt-1"><span className={`px-2 py-0.5 rounded-full text-white text-[10px] ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span></div>
+          <div>
+            <div className="flex justify-end mb-3">
+              <button onClick={createProject} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Project</button>
+            </div>
+            <div className="space-y-3">
+              {projects.map(p => (
+                <div key={p.id} className="bg-white rounded-xl p-4 border border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                    <img src={p.heroImage || 'https://via.placeholder.com/80x64/f8f5ee/0b5138?text=No+Image'} className="w-20 h-16 object-cover rounded" alt="" />
+                    <div>
+                      <div className="font-serif text-xl text-gillco-green">{p.name}</div>
+                      <div className="text-xs text-slate-500">{p.location} · {p.reraNumber}</div>
+                      <div className="text-xs mt-1"><span className={`px-2 py-0.5 rounded-full text-white text-[10px] ${STATUS_MAP[p.status]?.color || 'bg-slate-400'}`}>{STATUS_MAP[p.status]?.label || p.status}</span></div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setEditing(p)} className="px-4 py-2 bg-gillco-green text-white rounded-full text-sm inline-flex items-center gap-2"><Edit3 className="w-3 h-3" /> Edit</button>
+                    <button onClick={() => deleteProject(p.id)} className="px-3 py-2 border border-red-300 text-red-600 rounded-full text-sm inline-flex items-center gap-1"><Trash2 className="w-3 h-3" /></button>
                   </div>
                 </div>
-                <button onClick={() => setEditing(p)} className="px-4 py-2 bg-gillco-green text-white rounded-full text-sm inline-flex items-center gap-2"><Edit3 className="w-3 h-3" /> Edit</button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
+        {tab === 'hero' && settings && (
+          <HeroSlidesEditor settings={settings} onSave={saveSettings} />
+        )}
+        {tab === 'videos' && settings && (
+          <VideosEditor settings={settings} onSave={saveSettings} />
+        )}
+        {tab === 'news' && (
+          <NewsEditor news={news} setNews={setNews} />
+        )}
+        {tab === 'team' && (
+          <TeamEditor team={team} setTeam={setTeam} />
+        )}
         {tab === 'settings' && settings && (
           <SettingsEditor settings={settings} onSave={saveSettings} />
         )}
-
         {tab === 'enquiries' && (
           <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto">
             <table className="w-full text-sm">
@@ -1579,11 +1624,217 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
   );
 }
 
+/* ---------- Sub-editors ---------- */
+function HeroSlidesEditor({ settings, onSave }) {
+  const [slides, setSlides] = useState(settings.hero?.slides || []);
+  const [headline, setHeadline] = useState(settings.hero?.headline || '');
+  const [subline, setSubline] = useState(settings.hero?.subline || '');
+
+  const update = (i, k, v) => setSlides(prev => prev.map((s, idx) => idx === i ? { ...s, [k]: v } : s));
+  const remove = (i) => setSlides(prev => prev.filter((_, idx) => idx !== i));
+  const move = (i, dir) => {
+    const arr = [...slides]; const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    setSlides(arr);
+  };
+  const add = () => setSlides(prev => [...prev, { image: '', title: 'New Slide', subtitle: '' }]);
+  const save = () => onSave({ ...settings, hero: { ...(settings.hero || {}), headline, subline, slides } });
+
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="font-serif text-2xl text-gillco-green">Hero Slideshow</h3>
+        <div className="flex gap-2">
+          <button onClick={add} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Slide</button>
+          <button onClick={save} className="px-5 py-2 gradient-emerald text-white rounded-full text-sm font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save Hero</button>
+        </div>
+      </div>
+      <div className="grid md:grid-cols-2 gap-3">
+        <Field label="Hero Headline (use \n for line break)" value={headline} onChange={setHeadline} />
+        <Field label="Hero Subline" value={subline} onChange={setSubline} />
+      </div>
+      <div className="space-y-3">
+        {slides.map((s, i) => (
+          <div key={i} className="border border-slate-200 rounded-xl p-4 flex gap-4 items-start flex-wrap">
+            <img src={s.image || 'https://via.placeholder.com/120x80/f8f5ee/0b5138?text=No+Image'} alt="" className="w-32 h-20 rounded object-cover" />
+            <div className="flex-1 grid md:grid-cols-3 gap-3 min-w-[300px]">
+              <Field label={`Slide ${i + 1} Image URL`} value={s.image} onChange={v => update(i, 'image', v)} />
+              <Field label="Title" value={s.title} onChange={v => update(i, 'title', v)} />
+              <Field label="Subtitle" value={s.subtitle} onChange={v => update(i, 'subtitle', v)} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <button onClick={() => move(i, -1)} className="w-8 h-8 border border-slate-200 rounded" title="Up">↑</button>
+              <button onClick={() => move(i, 1)} className="w-8 h-8 border border-slate-200 rounded" title="Down">↓</button>
+              <button onClick={() => remove(i)} className="w-8 h-8 border border-red-200 text-red-600 rounded" title="Remove"><Trash2 className="w-3 h-3 mx-auto" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VideosEditor({ settings, onSave }) {
+  const [videos, setVideos] = useState(settings.videos || []);
+  const update = (i, k, v) => setVideos(prev => prev.map((x, idx) => idx === i ? { ...x, [k]: v } : x));
+  const add = () => setVideos(prev => [...prev, { id: `v${Date.now()}`, title: 'New Video', poster: '', youtubeId: '' }]);
+  const remove = (i) => setVideos(prev => prev.filter((_, idx) => idx !== i));
+  const save = () => onSave({ ...settings, videos });
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="font-serif text-2xl text-gillco-green">Video Walkthroughs</h3>
+        <div className="flex gap-2">
+          <button onClick={add} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Video</button>
+          <button onClick={save} className="px-5 py-2 gradient-emerald text-white rounded-full text-sm font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save</button>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {videos.map((v, i) => (
+          <div key={i} className="border border-slate-200 rounded-xl p-4 flex gap-4 items-start flex-wrap">
+            <img src={v.poster || 'https://via.placeholder.com/160x90/f8f5ee/0b5138?text=Poster'} alt="" className="w-40 h-24 rounded object-cover" />
+            <div className="flex-1 grid md:grid-cols-3 gap-3 min-w-[300px]">
+              <Field label="Title" value={v.title} onChange={x => update(i, 'title', x)} />
+              <Field label="Poster Image URL" value={v.poster} onChange={x => update(i, 'poster', x)} />
+              <Field label="YouTube Video ID (e.g. dQw4w9WgXcQ)" value={v.youtubeId} onChange={x => update(i, 'youtubeId', x)} />
+            </div>
+            <button onClick={() => remove(i)} className="w-8 h-8 border border-red-200 text-red-600 rounded"><Trash2 className="w-3 h-3 mx-auto" /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NewsEditor({ news, setNews }) {
+  const [editing, setEditing] = useState(null);
+  const save = async (n) => {
+    if (n.id && news.find(x => x.id === n.id)) {
+      const upd = await api(`/news/${n.id}`, { method: 'PUT', body: JSON.stringify(n) });
+      setNews(prev => prev.map(x => x.id === upd.id ? upd : x).sort((a, b) => (b.date || '').localeCompare(a.date || '')));
+    } else {
+      const created = await api('/news', { method: 'POST', body: JSON.stringify(n) });
+      setNews(prev => [created, ...prev].sort((a, b) => (b.date || '').localeCompare(a.date || '')));
+    }
+    setEditing(null);
+    toast.success('Saved');
+  };
+  const del = async (id) => {
+    if (!confirm('Delete this news item?')) return;
+    await api(`/news/${id}`, { method: 'DELETE' });
+    setNews(prev => prev.filter(x => x.id !== id));
+  };
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-serif text-2xl text-gillco-green">News & Announcements</h3>
+        <button onClick={() => setEditing({ date: new Date().toISOString().slice(0, 10), title: '', category: 'Corporate' })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add News</button>
+      </div>
+      <div className="space-y-2">
+        {news.map(n => (
+          <div key={n.id} className="border border-slate-100 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex-1">
+              <div className="text-xs text-gillco-gold">{new Date(n.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} · {n.category}</div>
+              <div className="text-sm text-slate-800">{n.title}</div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(n)} className="px-3 py-1.5 bg-gillco-green text-white text-xs rounded-full inline-flex gap-1 items-center"><Edit3 className="w-3 h-3" /> Edit</button>
+              <button onClick={() => del(n.id)} className="px-3 py-1.5 border border-red-300 text-red-600 text-xs rounded-full"><Trash2 className="w-3 h-3" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {editing && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-serif text-xl text-gillco-green">{editing.id ? 'Edit' : 'New'} News</h4>
+              <button onClick={() => setEditing(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3">
+              <Field label="Date (YYYY-MM-DD)" value={editing.date} onChange={v => setEditing({ ...editing, date: v })} />
+              <Field label="Category" value={editing.category} onChange={v => setEditing({ ...editing, category: v })} />
+              <div>
+                <label className="text-xs text-slate-500 uppercase">Headline</label>
+                <textarea rows={3} value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
+              </div>
+              <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamEditor({ team, setTeam }) {
+  const [editing, setEditing] = useState(null);
+  const save = async (m) => {
+    if (m.id && team.find(x => x.id === m.id)) {
+      const upd = await api(`/team/${m.id}`, { method: 'PUT', body: JSON.stringify(m) });
+      setTeam(prev => prev.map(x => x.id === upd.id ? upd : x));
+    } else {
+      const created = await api('/team', { method: 'POST', body: JSON.stringify(m) });
+      setTeam(prev => [...prev, created]);
+    }
+    setEditing(null);
+    toast.success('Saved');
+  };
+  const del = async (id) => {
+    if (!confirm('Remove this team member?')) return;
+    await api(`/team/${id}`, { method: 'DELETE' });
+    setTeam(prev => prev.filter(x => x.id !== id));
+  };
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-serif text-2xl text-gillco-green">Team Members</h3>
+        <button onClick={() => setEditing({ name: '', role: '', bio: '', photo: '', linkedin: '' })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Member</button>
+      </div>
+      <div className="grid md:grid-cols-3 gap-3">
+        {team.map(m => (
+          <div key={m.id} className="border border-slate-100 rounded-xl p-4 text-center">
+            <img src={m.photo || 'https://via.placeholder.com/120/f8f5ee/0b5138?text=Photo'} alt={m.name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2" />
+            <div className="font-serif text-lg text-gillco-green">{m.name}</div>
+            <div className="text-xs text-gillco-gold uppercase">{m.role}</div>
+            <div className="flex justify-center gap-2 mt-3">
+              <button onClick={() => setEditing(m)} className="px-3 py-1.5 bg-gillco-green text-white text-xs rounded-full inline-flex gap-1 items-center"><Edit3 className="w-3 h-3" /> Edit</button>
+              <button onClick={() => del(m.id)} className="px-3 py-1.5 border border-red-300 text-red-600 text-xs rounded-full"><Trash2 className="w-3 h-3" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {editing && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-serif text-xl text-gillco-green">{editing.id ? 'Edit' : 'New'} Team Member</h4>
+              <button onClick={() => setEditing(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3">
+              <Field label="Name" value={editing.name} onChange={v => setEditing({ ...editing, name: v })} />
+              <Field label="Role" value={editing.role} onChange={v => setEditing({ ...editing, role: v })} />
+              <Field label="Photo URL" value={editing.photo} onChange={v => setEditing({ ...editing, photo: v })} />
+              <Field label="LinkedIn URL" value={editing.linkedin} onChange={v => setEditing({ ...editing, linkedin: v })} />
+              <div>
+                <label className="text-xs text-slate-500 uppercase">Bio</label>
+                <textarea rows={4} value={editing.bio} onChange={e => setEditing({ ...editing, bio: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
+              </div>
+              <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsEditor({ settings, onSave }) {
   const [s, setS] = useState(settings);
   return (
     <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
-      <h3 className="font-serif text-2xl text-gillco-green">Site Settings</h3>
+      <h3 className="font-serif text-2xl text-gillco-green">Site & Brand Settings</h3>
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Brand Name" value={s.brandName} onChange={v => setS({ ...s, brandName: v })} />
         <Field label="Tagline" value={s.tagline} onChange={v => setS({ ...s, tagline: v })} />
@@ -1591,57 +1842,178 @@ function SettingsEditor({ settings, onSave }) {
         <Field label="WhatsApp (digits only)" value={s.whatsapp} onChange={v => setS({ ...s, whatsapp: v })} />
         <Field label="Email" value={s.email} onChange={v => setS({ ...s, email: v })} />
         <Field label="Address" value={s.address} onChange={v => setS({ ...s, address: v })} />
+        <Field label="Founded (year)" type="number" value={s.founded} onChange={v => setS({ ...s, founded: Number(v) })} />
       </div>
-      <h4 className="font-serif text-xl text-gillco-green mt-4">Popup Form Config</h4>
-      <div className="grid md:grid-cols-3 gap-4">
+
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Key Stats (shown on home)</h4>
+      <div className="grid md:grid-cols-4 gap-3">
+        <Field label="Years" type="number" value={s.stats?.years} onChange={v => setS({ ...s, stats: { ...(s.stats || {}), years: Number(v) } })} />
+        <Field label="Projects" type="number" value={s.stats?.projects} onChange={v => setS({ ...s, stats: { ...(s.stats || {}), projects: Number(v) } })} />
+        <Field label="Happy Families" type="number" value={s.stats?.families} onChange={v => setS({ ...s, stats: { ...(s.stats || {}), families: Number(v) } })} />
+        <Field label="Sq. Ft. Developed" value={s.stats?.sqft} onChange={v => setS({ ...s, stats: { ...(s.stats || {}), sqft: v } })} />
+      </div>
+
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Social Media</h4>
+      <div className="grid md:grid-cols-2 gap-3">
+        <Field label="Facebook URL" value={s.social?.facebook} onChange={v => setS({ ...s, social: { ...(s.social || {}), facebook: v } })} />
+        <Field label="Instagram URL" value={s.social?.instagram} onChange={v => setS({ ...s, social: { ...(s.social || {}), instagram: v } })} />
+        <Field label="LinkedIn URL" value={s.social?.linkedin} onChange={v => setS({ ...s, social: { ...(s.social || {}), linkedin: v } })} />
+        <Field label="YouTube URL" value={s.social?.youtube} onChange={v => setS({ ...s, social: { ...(s.social || {}), youtube: v } })} />
+        <Field label="X / Twitter URL" value={s.social?.twitter} onChange={v => setS({ ...s, social: { ...(s.social || {}), twitter: v } })} />
+      </div>
+
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Popup Form Config</h4>
+      <div className="grid md:grid-cols-3 gap-4 items-end">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={s.popup?.enabled} onChange={e => setS({ ...s, popup: { ...s.popup, enabled: e.target.checked } })} />
+          <input type="checkbox" checked={s.popup?.enabled} onChange={e => setS({ ...s, popup: { ...(s.popup || {}), enabled: e.target.checked } })} />
           Enable popup
         </label>
-        <Field label="Delay (seconds)" type="number" value={s.popup?.delaySeconds} onChange={v => setS({ ...s, popup: { ...s.popup, delaySeconds: Number(v) } })} />
-        <Field label="Cookie Suppression (hours)" type="number" value={s.popup?.cookieHours} onChange={v => setS({ ...s, popup: { ...s.popup, cookieHours: Number(v) } })} />
+        <Field label="Delay (seconds)" type="number" value={s.popup?.delaySeconds} onChange={v => setS({ ...s, popup: { ...(s.popup || {}), delaySeconds: Number(v) } })} />
+        <Field label="Cookie Suppression (hours)" type="number" value={s.popup?.cookieHours} onChange={v => setS({ ...s, popup: { ...(s.popup || {}), cookieHours: Number(v) } })} />
       </div>
-      <button onClick={() => onSave(s)} className="mt-4 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save Settings</button>
+
+      <button onClick={() => onSave(s)} className="mt-6 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save All Settings</button>
     </div>
   );
 }
 
 function ProjectEditor({ project, onSave, onClose }) {
-  const [p, setP] = useState(project);
+  const [p, setP] = useState({ ...project, amenities: project.amenities || [], milestones: project.milestones || [], gallery: project.gallery || [] });
+  const [amenityInput, setAmenityInput] = useState('');
+  const [galleryInput, setGalleryInput] = useState('');
+
+  const addAmenity = () => {
+    if (!amenityInput.trim()) return;
+    setP({ ...p, amenities: [...p.amenities, amenityInput.trim()] });
+    setAmenityInput('');
+  };
+  const removeAmenity = (i) => setP({ ...p, amenities: p.amenities.filter((_, idx) => idx !== i) });
+
+  const addGallery = () => {
+    if (!galleryInput.trim()) return;
+    setP({ ...p, gallery: [...p.gallery, galleryInput.trim()] });
+    setGalleryInput('');
+  };
+  const removeGallery = (i) => setP({ ...p, gallery: p.gallery.filter((_, idx) => idx !== i) });
+
+  const updateMilestone = (i, k, v) => setP({ ...p, milestones: p.milestones.map((m, idx) => idx === i ? { ...m, [k]: v } : m) });
+  const addMilestone = () => setP({ ...p, milestones: [...p.milestones, { date: new Date().toISOString().slice(0, 10), title: 'New Milestone', done: false }] });
+  const removeMilestone = (i) => setP({ ...p, milestones: p.milestones.filter((_, idx) => idx !== i) });
+
   return (
     <div className="fixed inset-0 bg-black/70 z-50 overflow-y-auto flex items-start justify-center p-4">
-      <div className="bg-white max-w-3xl w-full rounded-2xl p-6 my-8">
+      <div className="bg-white max-w-4xl w-full rounded-2xl p-6 my-8">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-serif text-2xl text-gillco-green">Edit: {project.name}</h3>
+          <h3 className="font-serif text-2xl text-gillco-green">Edit: {p.name}</h3>
           <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"><X className="w-4 h-4" /></button>
         </div>
+
+        {/* Basics */}
+        <h4 className="font-serif text-lg text-gillco-green mb-2">Basics</h4>
         <div className="grid md:grid-cols-2 gap-4">
           <Field label="Name" value={p.name} onChange={v => setP({ ...p, name: v })} />
+          <Field label="Slug (URL id)" value={p.slug} onChange={v => setP({ ...p, slug: v })} />
+          <Field label="Tagline" value={p.tagline} onChange={v => setP({ ...p, tagline: v })} />
           <Field label="Location" value={p.location} onChange={v => setP({ ...p, location: v })} />
           <div>
             <label className="text-xs text-slate-500 uppercase">Status</label>
             <select value={p.status} onChange={e => setP({ ...p, status: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg">
               <option value="delivered">Delivered</option>
               <option value="ongoing">Ongoing</option>
-              <option value="upcoming">Upcoming</option>
+              <option value="upcoming">Upcoming / Soft Launch</option>
             </select>
           </div>
-          <Field label="Category" value={p.category} onChange={v => setP({ ...p, category: v })} />
+          <div>
+            <label className="text-xs text-slate-500 uppercase">Category</label>
+            <select value={p.category} onChange={e => setP({ ...p, category: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg">
+              <option value="residential">Residential</option>
+              <option value="commercial">Commercial</option>
+              <option value="industrial">Industrial</option>
+            </select>
+          </div>
+        </div>
+
+        {/* RERA */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">RERA Disclosure</h4>
+        <div className="grid md:grid-cols-3 gap-4">
           <Field label="RERA Number" value={p.reraNumber} onChange={v => setP({ ...p, reraNumber: v })} />
           <Field label="RERA Status" value={p.reraStatus} onChange={v => setP({ ...p, reraStatus: v })} />
-          <Field label="RERA Updated (YYYY-MM-DD)" value={p.reraUpdatedAt} onChange={v => setP({ ...p, reraUpdatedAt: v })} />
-          <Field label="Construction %" type="number" value={p.constructionPercent} onChange={v => setP({ ...p, constructionPercent: Number(v) })} />
+          <Field label="Updated On (YYYY-MM-DD)" value={p.reraUpdatedAt} onChange={v => setP({ ...p, reraUpdatedAt: v })} />
+        </div>
+
+        {/* Specs */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Specs & Pricing</h4>
+        <div className="grid md:grid-cols-3 gap-4">
           <Field label="Unit Mix" value={p.unitMix} onChange={v => setP({ ...p, unitMix: v })} />
           <Field label="Price Range" value={p.priceRange} onChange={v => setP({ ...p, priceRange: v })} />
-          <Field label="Hero Image URL" value={p.heroImage} onChange={v => setP({ ...p, heroImage: v })} />
-          <Field label="Tagline" value={p.tagline} onChange={v => setP({ ...p, tagline: v })} />
-          <Field label="Brochure URL (optional real PDF)" value={p.brochureUrl} onChange={v => setP({ ...p, brochureUrl: v })} />
+          <Field label="Construction %" type="number" value={p.constructionPercent} onChange={v => setP({ ...p, constructionPercent: Number(v) })} />
+          <Field label="Launch Date" value={p.launchDate} onChange={v => setP({ ...p, launchDate: v })} />
+          <Field label="Handover Date" value={p.handoverDate} onChange={v => setP({ ...p, handoverDate: v })} />
+          <Field label="Acres" type="number" value={p.acres} onChange={v => setP({ ...p, acres: Number(v) })} />
+          <Field label="Towers" type="number" value={p.towers} onChange={v => setP({ ...p, towers: Number(v) })} />
+          <Field label="Total Units" type="number" value={p.units} onChange={v => setP({ ...p, units: Number(v) })} />
         </div>
-        <div className="mt-4">
+
+        {/* Media */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Media</h4>
+        <Field label="Hero Image URL" value={p.heroImage} onChange={v => setP({ ...p, heroImage: v })} />
+        <Field label="Brochure URL (real PDF, optional — else auto-generated)" value={p.brochureUrl} onChange={v => setP({ ...p, brochureUrl: v })} />
+        <div className="mt-3">
+          <label className="text-xs text-slate-500 uppercase">Gallery Images</label>
+          <div className="flex gap-2 mt-1">
+            <input value={galleryInput} onChange={e => setGalleryInput(e.target.value)} placeholder="Paste image URL" className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+            <button onClick={addGallery} className="px-4 py-2 bg-gillco-green text-white rounded-lg text-sm">Add</button>
+          </div>
+          <div className="mt-2 flex gap-2 flex-wrap">
+            {p.gallery.map((g, i) => (
+              <div key={i} className="relative group">
+                <img src={g} alt="" className="w-24 h-16 object-cover rounded" />
+                <button onClick={() => removeGallery(i)} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs">×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Summary */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Description</h4>
+        <div>
           <label className="text-xs text-slate-500 uppercase">Summary</label>
-          <textarea value={p.summary} onChange={e => setP({ ...p, summary: e.target.value })} rows={3} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
+          <textarea value={p.summary} onChange={e => setP({ ...p, summary: e.target.value })} rows={4} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
         </div>
-        <button onClick={() => onSave(p)} className="mt-6 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save Project</button>
+
+        {/* Amenities */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Amenities</h4>
+        <div className="flex gap-2">
+          <input value={amenityInput} onChange={e => setAmenityInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAmenity(); } }} placeholder="e.g. Infinity Pool" className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+          <button onClick={addAmenity} className="px-4 py-2 bg-gillco-green text-white rounded-lg text-sm">Add</button>
+        </div>
+        <div className="mt-3 flex gap-2 flex-wrap">
+          {p.amenities.map((a, i) => (
+            <span key={i} className="px-3 py-1 bg-gillco-cream border border-gillco-gold/30 rounded-full text-sm text-gillco-green inline-flex items-center gap-1">
+              {a}
+              <button onClick={() => removeAmenity(i)} className="text-red-500 hover:text-red-700">×</button>
+            </span>
+          ))}
+        </div>
+
+        {/* Milestones */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Milestones</h4>
+        <div className="space-y-2">
+          {p.milestones.map((m, i) => (
+            <div key={i} className="grid grid-cols-12 gap-2 items-center">
+              <input type="date" value={m.date} onChange={e => updateMilestone(i, 'date', e.target.value)} className="col-span-3 px-2 py-1.5 border border-slate-200 rounded text-sm" />
+              <input value={m.title} onChange={e => updateMilestone(i, 'title', e.target.value)} className="col-span-7 px-2 py-1.5 border border-slate-200 rounded text-sm" />
+              <label className="col-span-1 text-xs flex items-center gap-1"><input type="checkbox" checked={m.done} onChange={e => updateMilestone(i, 'done', e.target.checked)} /> Done</label>
+              <button onClick={() => removeMilestone(i)} className="col-span-1 text-red-500 text-sm">×</button>
+            </div>
+          ))}
+          <button onClick={addMilestone} className="px-3 py-1.5 border border-slate-300 rounded-full text-sm inline-flex gap-1 items-center"><Plus className="w-3 h-3" /> Add Milestone</button>
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <button onClick={() => onSave(p)} className="px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save Project</button>
+          <button onClick={onClose} className="px-6 py-3 border border-slate-300 rounded-full font-semibold">Cancel</button>
+        </div>
       </div>
     </div>
   );
