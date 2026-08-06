@@ -31,6 +31,89 @@ const GILLCO_LOGO_WHITE = 'https://www.gillcogroup.com/gillco-logo-white.png';
 const IMG_PLACEHOLDER = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20800%20600%22%3E%3Crect%20width%3D%22800%22%20height%3D%22600%22%20fill%3D%22%23f8f5ee%22%2F%3E%3Ctext%20x%3D%22400%22%20y%3D%22300%22%20text-anchor%3D%22middle%22%20fill%3D%22%230b5138%22%20font-family%3D%22serif%22%20font-size%3D%2224%22%3EGillco%20Group%3C%2Ftext%3E%3C%2Fsvg%3E';
 const safeImg = (url) => (url && String(url).trim()) || IMG_PLACEHOLDER;
 
+/* ---------- Countdown / urgency badge for soft-launch projects ---------- */
+function CountdownBadge({ soft, compact = false, onEnquire }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!soft?.enabled) return null;
+  const endsAt = new Date(soft.endsAt).getTime();
+  const diff = Math.max(0, endsAt - now);
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const mins = Math.floor((diff / (1000 * 60)) % 60);
+  const secs = Math.floor((diff / 1000) % 60);
+  const total = soft.slotsTotal || 60;
+  const left = Math.max(0, soft.slotsLeft ?? 0);
+  const pct = Math.max(4, Math.min(100, (left / total) * 100));
+  const urgency = left <= 10 ? 'critical' : left <= 25 ? 'high' : 'normal';
+  const urgencyColor = urgency === 'critical' ? 'text-red-600 bg-red-50 border-red-200' : urgency === 'high' ? 'text-orange-700 bg-orange-50 border-orange-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200';
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-500 text-white animate-pulse uppercase tracking-widest">Only {left} left</span>
+        <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-gillco-gold text-slate-900 uppercase tracking-widest">Ends in {days}d {hours}h</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl overflow-hidden border-2 border-gillco-gold shadow-lg">
+      <div className="gradient-emerald text-white px-5 py-3 flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <p className="text-[10px] tracking-[0.3em] text-gillco-gold font-bold uppercase">🔥 {soft.offerLabel || 'Priority Booking'}</p>
+          <p className="text-sm text-white/90 mt-0.5">Limited-time launch window closing soon</p>
+        </div>
+        <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${urgencyColor} border`}>
+          Only <span className="text-lg font-serif">{left}</span> of {total} slots left
+        </span>
+      </div>
+      <div className="bg-white p-5">
+        {/* Slot bar */}
+        <div className="mb-4">
+          <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+            <span>Availability</span>
+            <span className={urgency === 'critical' ? 'text-red-600 font-semibold' : 'text-slate-600'}>{left}/{total} slots</span>
+          </div>
+          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className={`h-full transition-all ${urgency === 'critical' ? 'bg-red-500' : urgency === 'high' ? 'bg-orange-500' : 'bg-emerald-600'}`} style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+        {/* Countdown */}
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {[
+            ['Days', days], ['Hours', hours], ['Minutes', mins], ['Seconds', secs],
+          ].map(([lbl, val]) => (
+            <div key={lbl} className="text-center p-3 rounded-lg bg-gillco-cream border border-gillco-gold/30">
+              <div className="font-serif text-3xl text-gillco-green font-bold tabular-nums">{String(val).padStart(2, '0')}</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-1">{lbl}</div>
+            </div>
+          ))}
+        </div>
+        {/* Benefits */}
+        {soft.benefits?.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {soft.benefits.map(b => (
+              <div key={b} className="flex items-center gap-1.5 text-xs text-slate-700">
+                <CheckCircle2 className="w-3.5 h-3.5 text-gillco-gold shrink-0" />
+                <span>{b}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {onEnquire && (
+          <button onClick={onEnquire} className="w-full py-3 gradient-gold text-slate-900 rounded-full font-bold text-sm hover:brightness-110 transition inline-flex items-center justify-center gap-2">
+            <Sparkles className="w-4 h-4" /> Book Priority Slot Now
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- brochure generator ---------- */
 async function downloadBrochure(project) {
   // If admin uploaded a real brochure URL, download that
@@ -663,6 +746,11 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
                     Book Soft Launch
                   </button>
                 </div>
+                {featured?.softLaunch?.enabled && (
+                  <div className="mt-8">
+                    <CountdownBadge soft={featured.softLaunch} onEnquire={() => onEnquire({ type: 'soft-launch', projectId: featured.id, projectName: featured.name })} />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -817,6 +905,9 @@ function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
       <div className="p-6">
         <h3 className="font-serif text-2xl text-gillco-green">{project.name}</h3>
         <p className="text-sm text-slate-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {project.location}</p>
+        {project.softLaunch?.enabled && (
+          <div className="mt-3"><CountdownBadge soft={project.softLaunch} compact /></div>
+        )}
         <p className="text-sm text-slate-600 mt-3 line-clamp-2">{project.summary}</p>
         <div className="mt-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-3">
           <span>{project.unitMix}</span>
@@ -940,6 +1031,13 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
             </div>
 
             <p className="mt-6 text-slate-700 leading-relaxed">{project.summary}</p>
+
+            {/* Soft launch urgency */}
+            {project.softLaunch?.enabled && (
+              <div className="mt-6">
+                <CountdownBadge soft={project.softLaunch} onEnquire={() => onEnquire('soft-launch')} />
+              </div>
+            )}
 
             {/* Quick Stats */}
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
