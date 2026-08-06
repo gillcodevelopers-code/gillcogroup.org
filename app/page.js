@@ -103,7 +103,7 @@ async function downloadBrochure(project) {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.text('support@gillcogroup.org  ·  +91 90417 95879  ·  gillcogroup.com', 40, H - 30);
+    doc.text('support@gillcogroup.org  ·  +91 90417 95879  ·  gillcogroup.org', 40, H - 30);
 
     // ===== Page 2 — Details =====
     doc.addPage();
@@ -259,7 +259,16 @@ function App() {
           api('/team'),
         ]);
         setSettings(s);
-        setProjects(p);
+        // Sort projects: Meraqui first, then upcoming, then ongoing, then delivered
+        const statusOrder = { upcoming: 1, ongoing: 2, delivered: 3 };
+        const sorted = [...p].sort((a, b) => {
+          if (a.slug === 'meraqui') return -1;
+          if (b.slug === 'meraqui') return 1;
+          const sd = (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
+          if (sd) return sd;
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
+        });
+        setProjects(sorted);
         setNews(n);
         setTeam(t);
       } catch (e) {
