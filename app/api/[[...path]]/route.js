@@ -1,6 +1,8 @@
 import { MongoClient } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import { NextResponse } from 'next/server';
+import fs from 'fs';
+import nodePath from 'path';
 
 let clientPromise;
 let db;
@@ -29,6 +31,20 @@ function strip(doc) {
   if (!doc) return doc;
   const { _id, _seedVersion, ...rest } = doc;
   return rest;
+}
+
+// Record a history entry for later Undo
+async function recordHistory(db, { entity, entityId, action, before = null, after = null, label = '' }) {
+  const entry = {
+    id: uuidv4(),
+    ts: new Date().toISOString(),
+    entity, entityId, action, label,
+    before: before ? JSON.parse(JSON.stringify(before, (k, v) => (k === '_id' ? undefined : v))) : null,
+    after: after ? JSON.parse(JSON.stringify(after, (k, v) => (k === '_id' ? undefined : v))) : null,
+    undone: false,
+  };
+  try { await db.collection('history').insertOne(entry); } catch (e) { console.error('history log fail', e); }
+  return entry;
 }
 
 // -------------------- SEED DATA (Gillco Group real content) --------------------
@@ -284,9 +300,9 @@ const SEED_SETTINGS = {
   id: 'site',
   brandName: 'Gillco Group',
   tagline: "Punjab's Leading Luxury Real Estate Developer",
-  phone: '+91 75290 19797',
-  whatsapp: '919517889797',
-  email: 'helpdesk@gillcogroup.com',
+  phone: '+91 90417 95879',
+  whatsapp: '919041795879',
+  email: 'support@gillcogroup.org',
   address: 'Gillco Group Corporate Office, Airport Road, Mohali, Punjab, India',
   founded: 2001,
   stats: { years: 25, projects: 8, families: 1577, sqft: '11M+' },
@@ -362,7 +378,62 @@ async function handleRoute(request, { params }) {
     const db = await connectToMongo();
     await ensureSeed(db);
 
-    // Health
+    // ---------- UPLOAD ----------
+    if (route === '/upload' && method === 'POST') {
+      const formData = await request.formData();
+      const file = formData.get('file');
+      if (!file || typeof file === 'string') {
+        return cors(NextResponse.json({ error: 'no file' }, { status: 400 }));
+      }
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const original = file.name || 'file';
+      const ext = (original.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const fname = `${uuidv4()}.${ext || 'bin'}`;
+      const uploadDir = nodePath.join(process.cwd(), 'public', 'uploads');
+      try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
+      await fs.promises.writeFile(nodePath.join(uploadDir, fname), buffer);
+      const url = `/uploads/${fname}`;
+      return cors(NextResponse.json({ url, filename: original, size: buffer.length, mime: file.type || 'application/octet-stream' }));
+    }
+
+    // ---------- HISTORY ----------
+    if (route === '/history' && method === 'GET') {
+      const items = await db.collection('history').find({}).sort({ ts: -1 }).limit(200).toArray();
+      return cors(NextResponse.json(items.map(strip)));
+    }
+    if (route.startsWith('/history/') && route.endsWith('/undo') && method === 'POST') {
+      const id = route.split('/')[2];
+      const entry = await db.collection('history').findOne({ id });
+      if (!entry) return cors(NextResponse.json({ error: 'history entry not found' }, { status: 404 }));
+      if (entry.undone) return cors(NextResponse.json({ error: 'already undone' }, { status: 400 }));
+
+      // Perform inverse operation
+      const coll = entry.entity;
+      if (entry.action === 'create') {
+        // Undo create = delete
+        if (coll === 'settings') return cors(NextResponse.json({ error: 'cannot undo settings create' }, { status: 400 }));
+        await db.collection(coll).deleteOne({ id: entry.entityId });
+      } else if (entry.action === 'update') {
+        // Undo update = restore before
+        if (!entry.before) return cors(NextResponse.json({ error: 'no before snapshot' }, { status: 400 }));
+        if (coll === 'settings') {
+          await db.collection('settings').updateOne({ id: 'site' }, { $set: entry.before }, { upsert: true });
+        } else {
+          await db.collection(coll).updateOne({ id: entry.entityId }, { $set: entry.before });
+        }
+      } else if (entry.action === 'delete') {
+        // Undo delete = re-insert before
+        if (!entry.before) return cors(NextResponse.json({ error: 'no before snapshot' }, { status: 400 }));
+        const restore = { ...entry.before };
+        delete restore._id;
+        await db.collection(coll).insertOne(restore);
+      }
+      await db.collection('history').updateOne({ id }, { $set: { undone: true, undoneAt: new Date().toISOString() } });
+      return cors(NextResponse.json({ ok: true }));
+    }
+
+    // Root endpoint - health check
     if (route === '/' || route === '/root') {
       return cors(NextResponse.json({ ok: true, service: 'gillco-cms', ts: new Date().toISOString() }));
     }
@@ -374,8 +445,10 @@ async function handleRoute(request, { params }) {
     }
     if (route === '/settings' && method === 'PUT') {
       const body = await request.json();
+      const before = await db.collection('settings').findOne({ id: 'site' });
       await db.collection('settings').updateOne({ id: 'site' }, { $set: body }, { upsert: true });
       const s = await db.collection('settings').findOne({ id: 'site' });
+      await recordHistory(db, { entity: 'settings', entityId: 'site', action: 'update', before: strip(before), after: strip(s), label: 'Updated site settings' });
       return cors(NextResponse.json(strip(s)));
     }
 
@@ -388,6 +461,7 @@ async function handleRoute(request, { params }) {
       const body = await request.json();
       const doc = { id: uuidv4(), createdAt: new Date().toISOString(), ...body };
       await db.collection('projects').insertOne(doc);
+      await recordHistory(db, { entity: 'projects', entityId: doc.id, action: 'create', after: strip(doc), label: `Created project: ${doc.name || doc.id}` });
       return cors(NextResponse.json(strip(doc)));
     }
     if (route.startsWith('/projects/') && method === 'GET') {
@@ -400,13 +474,17 @@ async function handleRoute(request, { params }) {
       const id = route.split('/')[2];
       const body = await request.json();
       delete body._id;
+      const before = await db.collection('projects').findOne({ id });
       await db.collection('projects').updateOne({ id }, { $set: body });
       const doc = await db.collection('projects').findOne({ id });
+      await recordHistory(db, { entity: 'projects', entityId: id, action: 'update', before: strip(before), after: strip(doc), label: `Updated project: ${doc.name || id}` });
       return cors(NextResponse.json(strip(doc)));
     }
     if (route.startsWith('/projects/') && method === 'DELETE') {
       const id = route.split('/')[2];
+      const before = await db.collection('projects').findOne({ id });
       await db.collection('projects').deleteOne({ id });
+      if (before) await recordHistory(db, { entity: 'projects', entityId: id, action: 'delete', before: strip(before), label: `Deleted project: ${before?.name || id}` });
       return cors(NextResponse.json({ ok: true }));
     }
 
@@ -446,19 +524,24 @@ async function handleRoute(request, { params }) {
       const body = await request.json();
       const doc = { id: uuidv4(), ...body };
       await db.collection('news').insertOne(doc);
+      await recordHistory(db, { entity: 'news', entityId: doc.id, action: 'create', after: strip(doc), label: `Added news: ${doc.title?.slice(0, 40) || doc.id}` });
       return cors(NextResponse.json(strip(doc)));
     }
     if (route.startsWith('/news/') && method === 'PUT') {
       const id = route.split('/')[2];
       const body = await request.json();
       delete body._id;
+      const before = await db.collection('news').findOne({ id });
       await db.collection('news').updateOne({ id }, { $set: body });
       const doc = await db.collection('news').findOne({ id });
+      await recordHistory(db, { entity: 'news', entityId: id, action: 'update', before: strip(before), after: strip(doc), label: `Updated news: ${doc.title?.slice(0, 40) || id}` });
       return cors(NextResponse.json(strip(doc)));
     }
     if (route.startsWith('/news/') && method === 'DELETE') {
       const id = route.split('/')[2];
+      const before = await db.collection('news').findOne({ id });
       await db.collection('news').deleteOne({ id });
+      if (before) await recordHistory(db, { entity: 'news', entityId: id, action: 'delete', before: strip(before), label: `Deleted news: ${before.title?.slice(0, 40) || id}` });
       return cors(NextResponse.json({ ok: true }));
     }
 
@@ -471,19 +554,24 @@ async function handleRoute(request, { params }) {
       const body = await request.json();
       const doc = { id: uuidv4(), ...body };
       await db.collection('team').insertOne(doc);
+      await recordHistory(db, { entity: 'team', entityId: doc.id, action: 'create', after: strip(doc), label: `Added team member: ${doc.name || doc.id}` });
       return cors(NextResponse.json(strip(doc)));
     }
     if (route.startsWith('/team/') && method === 'PUT') {
       const id = route.split('/')[2];
       const body = await request.json();
       delete body._id;
+      const before = await db.collection('team').findOne({ id });
       await db.collection('team').updateOne({ id }, { $set: body });
       const doc = await db.collection('team').findOne({ id });
+      await recordHistory(db, { entity: 'team', entityId: id, action: 'update', before: strip(before), after: strip(doc), label: `Updated team member: ${doc.name || id}` });
       return cors(NextResponse.json(strip(doc)));
     }
     if (route.startsWith('/team/') && method === 'DELETE') {
       const id = route.split('/')[2];
+      const before = await db.collection('team').findOne({ id });
       await db.collection('team').deleteOne({ id });
+      if (before) await recordHistory(db, { entity: 'team', entityId: id, action: 'delete', before: strip(before), label: `Removed team member: ${before.name || id}` });
       return cors(NextResponse.json({ ok: true }));
     }
 

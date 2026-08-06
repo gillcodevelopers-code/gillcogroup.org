@@ -28,6 +28,8 @@ const STATUS_MAP = {
 
 const GILLCO_LOGO = 'https://www.gillcogroup.com/gillco-logo-original.png';
 const GILLCO_LOGO_WHITE = 'https://www.gillcogroup.com/gillco-logo-white.png';
+const IMG_PLACEHOLDER = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20800%20600%22%3E%3Crect%20width%3D%22800%22%20height%3D%22600%22%20fill%3D%22%23f8f5ee%22%2F%3E%3Ctext%20x%3D%22400%22%20y%3D%22300%22%20text-anchor%3D%22middle%22%20fill%3D%22%230b5138%22%20font-family%3D%22serif%22%20font-size%3D%2224%22%3EGillco%20Group%3C%2Ftext%3E%3C%2Fsvg%3E';
+const safeImg = (url) => (url && String(url).trim()) || IMG_PLACEHOLDER;
 
 /* ---------- brochure generator ---------- */
 async function downloadBrochure(project) {
@@ -101,7 +103,7 @@ async function downloadBrochure(project) {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.text('helpdesk@gillcogroup.com  ·  +91 75290 19797  ·  gillcogroup.com', 40, H - 30);
+    doc.text('support@gillcogroup.org  ·  +91 90417 95879  ·  gillcogroup.com', 40, H - 30);
 
     // ===== Page 2 — Details =====
     doc.addPage();
@@ -200,7 +202,7 @@ async function downloadBrochure(project) {
     doc.text('This brochure is generated from live CMS data.', 40, H - 30);
     doc.setTextColor(11, 81, 56);
     doc.setFont('helvetica', 'bold');
-    doc.text('helpdesk@gillcogroup.com  |  +91 75290 19797', W - 40, H - 30, { align: 'right' });
+    doc.text('support@gillcogroup.org  |  +91 90417 95879', W - 40, H - 30, { align: 'right' });
 
     doc.save(`${(project.slug || 'gillco') + '-brochure'}.pdf`);
     toast.success('Brochure downloaded', { id: 'broc' });
@@ -564,7 +566,7 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
               <div key={p.id} className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer" onClick={() => onProject(p)}>
                 {/* Image with gradient */}
                 <div className="relative h-56">
-                  <img src={p.heroImage} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                  <img src={safeImg(p.heroImage)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-gillco-green/60 to-transparent" />
                   <span className={`absolute top-4 left-4 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>
                   <div className="absolute bottom-3 left-4 right-4 text-white">
@@ -628,7 +630,7 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
           <div className="max-w-7xl mx-auto px-4">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div className="relative">
-                <img src={featured.heroImage} alt={featured.name} className="rounded-2xl shadow-2xl w-full aspect-[4/3] object-cover" />
+                <img src={safeImg(featured.heroImage)} alt={featured.name} className="rounded-2xl shadow-2xl w-full aspect-[4/3] object-cover" />
                 <div className="absolute -bottom-6 -right-6 bg-gillco-green text-white p-6 rounded-2xl shadow-xl hidden md:block">
                   <div className="text-4xl font-serif text-gillco-gold">{featured.acres}</div>
                   <div className="text-xs uppercase tracking-wider">Acres</div>
@@ -670,7 +672,7 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
             <div className="grid md:grid-cols-3 gap-6">
               {settings.videos.map(v => (
                 <button key={v.id} onClick={() => onVideo(v)} className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all">
-                  <img src={v.poster} alt={v.title} className="w-full h-64 object-cover group-hover:scale-110 transition duration-700" />
+                  <img src={safeImg(v.poster)} alt={v.title} className="w-full h-64 object-cover group-hover:scale-110 transition duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-transparent to-transparent" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-20 h-20 rounded-full bg-gillco-gold/90 backdrop-blur flex items-center justify-center shadow-2xl group-hover:scale-110 transition ring-4 ring-white/30">
@@ -752,12 +754,12 @@ function Hero({ settings, onEnquire, goTo }) {
         <div
           key={i}
           className={`absolute inset-0 transition-opacity duration-1000 ${i === idx ? 'opacity-100' : 'opacity-0'}`}
-          style={{ backgroundImage: `url(${s.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+          style={{ backgroundImage: `url(${safeImg(s.image)})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
         />
       ))}
       <div className="absolute inset-0 hero-overlay" />
       <div className="relative h-full max-w-7xl mx-auto px-4 flex flex-col justify-center text-white">
-        <p className="text-xs md:text-sm tracking-[0.4em] text-gillco-gold uppercase font-semibold animate-fadeInUp">Est. {settings?.founded} · Punjab</p>
+        <p className="text-xs md:text-sm tracking-[0.4em] text-yellow-400 uppercase font-semibold animate-fadeInUp">Est. {settings?.founded} · Punjab</p>
         <h1 className="font-serif text-5xl md:text-7xl lg:text-8xl mt-4 leading-tight animate-fadeInUp whitespace-pre-line max-w-4xl">
           {settings?.hero?.headline}
         </h1>
@@ -799,7 +801,7 @@ function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
   return (
     <div className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-1 transition-all">
       <div className="relative h-64 overflow-hidden">
-        <img src={project.heroImage} alt={project.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+        <img src={safeImg(project.heroImage)} alt={project.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
         <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
         <span className="absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-800 capitalize">{project.category}</span>
       </div>
@@ -892,7 +894,7 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
         <div className="bg-white w-full max-w-6xl rounded-3xl overflow-hidden shadow-2xl">
           {/* Gallery */}
           <div className="relative h-96 bg-slate-100">
-            <img src={gallery[imgIdx]} alt={project.name} className="w-full h-full object-cover" />
+            <img src={safeImg(gallery[imgIdx])} alt={project.name} className="w-full h-full object-cover" />
             <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center"><X className="w-5 h-5" /></button>
             <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
             {gallery.length > 1 && (
@@ -1054,7 +1056,7 @@ function CompareModal({ projects, onClose, onRemove }) {
       const pageH = doc.internal.pageSize.getHeight();
       doc.setFontSize(8);
       doc.setTextColor(100);
-      doc.text('© Gillco Group · helpdesk@gillcogroup.com · +91 75290 19797', 40, pageH - 20);
+      doc.text('© Gillco Group · support@gillcogroup.org · +91 90417 95879', 40, pageH - 20);
 
       doc.save(`gillco-compare-${Date.now()}.pdf`);
       toast.success('PDF downloaded');
@@ -1090,7 +1092,7 @@ function CompareModal({ projects, onClose, onRemove }) {
                     <th className="text-left p-3 bg-gillco-cream text-gillco-green text-sm font-semibold w-40">Attribute</th>
                     {projects.map(p => (
                       <th key={p.id} className="p-3 bg-gillco-cream text-left align-top min-w-[200px]">
-                        <img src={p.heroImage} alt={p.name} className="w-full h-32 object-cover rounded-lg mb-2" />
+                        <img src={safeImg(p.heroImage)} alt={p.name} className="w-full h-32 object-cover rounded-lg mb-2" />
                         <div className="font-serif text-lg text-gillco-green">{p.name}</div>
                         <div className="text-xs text-slate-500">{p.location}</div>
                         <button onClick={() => onRemove(p.id)} className="mt-2 text-xs text-red-600 inline-flex items-center gap-1 no-print"><Trash2 className="w-3 h-3" /> Remove</button>
@@ -1252,7 +1254,7 @@ function VideoModal({ video, onClose }) {
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white">
-              <img src={video.poster} alt={video.title} className="w-full h-full object-cover opacity-60" />
+              <img src={safeImg(video.poster)} alt={video.title} className="w-full h-full object-cover opacity-60" />
               <div className="absolute text-center">
                 <p className="text-lg">Video coming soon</p>
                 <p className="text-sm text-white/60 mt-1">Contact us for a personalized walkthrough</p>
@@ -1340,7 +1342,7 @@ function TeamView({ team }) {
           {team.map(m => (
             <div key={m.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition group">
               <div className="h-72 overflow-hidden bg-slate-100">
-                <img src={m.photo} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                <img src={safeImg(m.photo)} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
               </div>
               <div className="p-6">
                 <h3 className="font-serif text-2xl text-gillco-green">{m.name}</h3>
@@ -1534,6 +1536,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     { id: 'team', label: 'Team' },
     { id: 'settings', label: 'Site & Brand' },
     { id: 'enquiries', label: 'Enquiries' },
+    { id: 'history', label: 'History' },
   ];
 
   return (
@@ -1562,7 +1565,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
               {projects.map(p => (
                 <div key={p.id} className="bg-white rounded-xl p-4 border border-slate-100 flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                    <img src={p.heroImage || 'https://via.placeholder.com/80x64/f8f5ee/0b5138?text=No+Image'} className="w-20 h-16 object-cover rounded" alt="" />
+                    <img src={safeImg(p.heroImage)} className="w-20 h-16 object-cover rounded" alt="" />
                     <div>
                       <div className="font-serif text-xl text-gillco-green">{p.name}</div>
                       <div className="text-xs text-slate-500">{p.location} · {p.reraNumber}</div>
@@ -1593,6 +1596,15 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
         )}
         {tab === 'settings' && settings && (
           <SettingsEditor settings={settings} onSave={saveSettings} />
+        )}
+        {tab === 'history' && (
+          <HistoryPanel onRestore={async () => {
+            // Reload everything after undo
+            const [s, p, n, t] = await Promise.all([
+              api('/settings'), api('/projects'), api('/news'), api('/team'),
+            ]);
+            setSettings(s); setProjects(p); setNews(n); setTeam(t);
+          }} />
         )}
         {tab === 'enquiries' && (
           <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto">
@@ -1657,9 +1669,10 @@ function HeroSlidesEditor({ settings, onSave }) {
       <div className="space-y-3">
         {slides.map((s, i) => (
           <div key={i} className="border border-slate-200 rounded-xl p-4 flex gap-4 items-start flex-wrap">
-            <img src={s.image || 'https://via.placeholder.com/120x80/f8f5ee/0b5138?text=No+Image'} alt="" className="w-32 h-20 rounded object-cover" />
-            <div className="flex-1 grid md:grid-cols-3 gap-3 min-w-[300px]">
-              <Field label={`Slide ${i + 1} Image URL`} value={s.image} onChange={v => update(i, 'image', v)} />
+            <div className="w-56 shrink-0">
+              <MediaUploader label={`Slide ${i + 1} Image`} value={s.image} onChange={v => update(i, 'image', v)} accept="image/*" />
+            </div>
+            <div className="flex-1 grid md:grid-cols-2 gap-3 min-w-[300px]">
               <Field label="Title" value={s.title} onChange={v => update(i, 'title', v)} />
               <Field label="Subtitle" value={s.subtitle} onChange={v => update(i, 'subtitle', v)} />
             </div>
@@ -1693,10 +1706,11 @@ function VideosEditor({ settings, onSave }) {
       <div className="space-y-3">
         {videos.map((v, i) => (
           <div key={i} className="border border-slate-200 rounded-xl p-4 flex gap-4 items-start flex-wrap">
-            <img src={v.poster || 'https://via.placeholder.com/160x90/f8f5ee/0b5138?text=Poster'} alt="" className="w-40 h-24 rounded object-cover" />
-            <div className="flex-1 grid md:grid-cols-3 gap-3 min-w-[300px]">
+            <div className="w-56 shrink-0">
+              <MediaUploader label="Poster" value={v.poster} onChange={x => update(i, 'poster', x)} accept="image/*" />
+            </div>
+            <div className="flex-1 grid md:grid-cols-2 gap-3 min-w-[300px]">
               <Field label="Title" value={v.title} onChange={x => update(i, 'title', x)} />
-              <Field label="Poster Image URL" value={v.poster} onChange={x => update(i, 'poster', x)} />
               <Field label="YouTube Video ID (e.g. dQw4w9WgXcQ)" value={v.youtubeId} onChange={x => update(i, 'youtubeId', x)} />
             </div>
             <button onClick={() => remove(i)} className="w-8 h-8 border border-red-200 text-red-600 rounded"><Trash2 className="w-3 h-3 mx-auto" /></button>
@@ -1795,7 +1809,7 @@ function TeamEditor({ team, setTeam }) {
       <div className="grid md:grid-cols-3 gap-3">
         {team.map(m => (
           <div key={m.id} className="border border-slate-100 rounded-xl p-4 text-center">
-            <img src={m.photo || 'https://via.placeholder.com/120/f8f5ee/0b5138?text=Photo'} alt={m.name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2" />
+            <img src={safeImg(m.photo)} alt={m.name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2" />
             <div className="font-serif text-lg text-gillco-green">{m.name}</div>
             <div className="text-xs text-gillco-gold uppercase">{m.role}</div>
             <div className="flex justify-center gap-2 mt-3">
@@ -1815,7 +1829,7 @@ function TeamEditor({ team, setTeam }) {
             <div className="space-y-3">
               <Field label="Name" value={editing.name} onChange={v => setEditing({ ...editing, name: v })} />
               <Field label="Role" value={editing.role} onChange={v => setEditing({ ...editing, role: v })} />
-              <Field label="Photo URL" value={editing.photo} onChange={v => setEditing({ ...editing, photo: v })} />
+              <MediaUploader label="Photo" value={editing.photo} onChange={v => setEditing({ ...editing, photo: v })} accept="image/*" />
               <Field label="LinkedIn URL" value={editing.linkedin} onChange={v => setEditing({ ...editing, linkedin: v })} />
               <div>
                 <label className="text-xs text-slate-500 uppercase">Bio</label>
@@ -1873,6 +1887,82 @@ function SettingsEditor({ settings, onSave }) {
       </div>
 
       <button onClick={() => onSave(s)} className="mt-6 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save All Settings</button>
+    </div>
+  );
+}
+
+function HistoryPanel({ onRestore }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [undoing, setUndoing] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api('/history');
+      setItems(data);
+    } catch { toast.error('Failed to load history'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const undo = async (id) => {
+    if (!confirm('Undo this change? The site will be restored to the previous state.')) return;
+    setUndoing(id);
+    try {
+      await api(`/history/${id}/undo`, { method: 'POST' });
+      toast.success('Change undone');
+      await onRestore?.();
+      await load();
+    } catch (e) {
+      toast.error('Undo failed: ' + (e.message || 'unknown'));
+    } finally {
+      setUndoing(null);
+    }
+  };
+
+  const actionColor = (a) => ({ create: 'bg-emerald-100 text-emerald-700', update: 'bg-blue-100 text-blue-700', delete: 'bg-red-100 text-red-700' })[a] || 'bg-slate-100 text-slate-700';
+  const entityLabel = (e) => ({ settings: 'Site Settings', projects: 'Project', news: 'News', team: 'Team' })[e] || e;
+
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-serif text-2xl text-gillco-green">Change History</h3>
+          <p className="text-sm text-slate-500">Every edit is recorded. Click "Undo" to revert.</p>
+        </div>
+        <button onClick={load} className="px-4 py-2 border border-slate-300 rounded-full text-sm">Refresh</button>
+      </div>
+      {loading ? (
+        <div className="py-10 text-center text-slate-500">Loading history…</div>
+      ) : items.length === 0 ? (
+        <div className="py-10 text-center text-slate-500">No changes recorded yet. Edit anything to start tracking.</div>
+      ) : (
+        <div className="space-y-2">
+          {items.map(h => (
+            <div key={h.id} className={`border rounded-xl p-4 flex items-start gap-3 flex-wrap ${h.undone ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-slate-100'}`}>
+              <div className="flex-1 min-w-[240px]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${actionColor(h.action)}`}>{h.action.toUpperCase()}</span>
+                  <span className="text-xs text-slate-500 uppercase tracking-wider">{entityLabel(h.entity)}</span>
+                  {h.undone && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">UNDONE</span>}
+                </div>
+                <div className="text-sm text-slate-800 mt-1 font-medium">{h.label || '(no label)'}</div>
+                <div className="text-xs text-slate-400 mt-1">{new Date(h.ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+              <button
+                onClick={() => undo(h.id)}
+                disabled={h.undone || undoing === h.id}
+                className="px-4 py-2 rounded-full text-sm font-semibold border border-gillco-green text-gillco-green hover:bg-gillco-cream disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                title={h.undone ? 'Already undone' : 'Undo this change'}
+              >
+                {undoing === h.id ? '…' : (h.undone ? 'Undone' : 'Undo')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1956,18 +2046,19 @@ function ProjectEditor({ project, onSave, onClose }) {
 
         {/* Media */}
         <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Media</h4>
-        <Field label="Hero Image URL" value={p.heroImage} onChange={v => setP({ ...p, heroImage: v })} />
-        <Field label="Brochure URL (real PDF, optional — else auto-generated)" value={p.brochureUrl} onChange={v => setP({ ...p, brochureUrl: v })} />
+        <MediaUploader label="Hero Image" value={p.heroImage} onChange={v => setP({ ...p, heroImage: v })} accept="image/*" />
+        <div className="mt-3">
+          <MediaUploader label="Brochure PDF (optional)" value={p.brochureUrl} onChange={v => setP({ ...p, brochureUrl: v })} accept="application/pdf" hint="PDF files only, up to 15 MB" />
+        </div>
         <div className="mt-3">
           <label className="text-xs text-slate-500 uppercase">Gallery Images</label>
-          <div className="flex gap-2 mt-1">
-            <input value={galleryInput} onChange={e => setGalleryInput(e.target.value)} placeholder="Paste image URL" className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" />
-            <button onClick={addGallery} className="px-4 py-2 bg-gillco-green text-white rounded-lg text-sm">Add</button>
+          <div className="mt-2">
+            <MediaUploader label="Add gallery image" value={galleryInput} onChange={v => { if (v) { setP({ ...p, gallery: [...p.gallery, v] }); setGalleryInput(''); } else setGalleryInput(''); }} accept="image/*" hint="Uploaded images are added to the gallery automatically" />
           </div>
-          <div className="mt-2 flex gap-2 flex-wrap">
+          <div className="mt-3 flex gap-2 flex-wrap">
             {p.gallery.map((g, i) => (
               <div key={i} className="relative group">
-                <img src={g} alt="" className="w-24 h-16 object-cover rounded" />
+                <img src={safeImg(g)} alt="" className="w-24 h-16 object-cover rounded" />
                 <button onClick={() => removeGallery(i)} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs">×</button>
               </div>
             ))}
@@ -2024,6 +2115,84 @@ function Field({ label, value, onChange, type = 'text' }) {
     <div>
       <label className="text-xs text-slate-500 uppercase tracking-wider">{label}</label>
       <input type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-gillco-green outline-none" />
+    </div>
+  );
+}
+
+/* ============ MediaUploader — drag/drop file uploads ============ */
+function MediaUploader({ label, value, onChange, accept = 'image/*', hint = 'PNG, JPG, WebP, PDF up to 10 MB' }) {
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef(null);
+
+  const upload = async (file) => {
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { toast.error('File too large (max 15 MB)'); return; }
+    setUploading(true);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('upload failed');
+      const data = await res.json();
+      onChange(data.url);
+      toast.success('Uploaded');
+    } catch (e) {
+      toast.error('Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) upload(file);
+  };
+
+  const isImage = value && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(value) || value?.startsWith('http') || value?.startsWith('/uploads/');
+
+  return (
+    <div>
+      <label className="text-xs text-slate-500 uppercase tracking-wider">{label}</label>
+      <div className="mt-1 flex gap-3 items-start flex-wrap">
+        <div
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          onClick={() => inputRef.current?.click()}
+          className={`flex-1 min-w-[200px] border-2 border-dashed rounded-lg p-4 cursor-pointer transition text-center ${dragOver ? 'border-gillco-gold bg-gillco-cream' : 'border-slate-300 hover:border-gillco-green'}`}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            onChange={e => upload(e.target.files?.[0])}
+            className="hidden"
+          />
+          {uploading ? (
+            <div className="text-sm text-gillco-green py-3">Uploading…</div>
+          ) : (
+            <>
+              <Download className="w-6 h-6 text-slate-400 mx-auto mb-2 rotate-180" />
+              <div className="text-sm text-slate-700 font-medium">Drag & drop or click to upload</div>
+              <div className="text-xs text-slate-400 mt-1">{hint}</div>
+            </>
+          )}
+        </div>
+        {value && (
+          <div className="w-24 h-24 rounded-lg overflow-hidden border border-slate-200 relative group shrink-0">
+            {isImage ? (
+              <img src={safeImg(value)} alt="preview" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-xs text-slate-500 bg-slate-100 p-1 text-center">{value.split('/').pop()}</div>
+            )}
+            <button onClick={() => onChange('')} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs opacity-0 group-hover:opacity-100 transition">×</button>
+          </div>
+        )}
+      </div>
+      <input value={value ?? ''} onChange={e => onChange(e.target.value)} placeholder="…or paste URL" className="w-full mt-2 px-3 py-1.5 border border-slate-200 rounded text-xs text-slate-500 focus:border-gillco-green outline-none" />
     </div>
   );
 }
