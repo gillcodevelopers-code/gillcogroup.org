@@ -28,6 +28,202 @@ const STATUS_MAP = {
 const GILLCO_LOGO = 'https://www.gillcogroup.com/gillco-logo-original.png';
 const GILLCO_LOGO_WHITE = 'https://www.gillcogroup.com/gillco-logo-white.png';
 
+/* ---------- brochure generator ---------- */
+async function downloadBrochure(project) {
+  // If admin uploaded a real brochure URL, download that
+  if (project.brochureUrl && project.brochureUrl.trim()) {
+    try {
+      window.open(project.brochureUrl, '_blank');
+      toast.success('Opening brochure…');
+      return;
+    } catch (e) {
+      // fallthrough to generated
+    }
+  }
+
+  // Otherwise generate a branded PDF brochure from project data
+  try {
+    toast.loading('Preparing brochure…', { id: 'broc' });
+    const jsPDFmod = await import('jspdf');
+    const jsPDF = jsPDFmod.jsPDF || jsPDFmod.default;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+
+    // Cover — dark green header
+    doc.setFillColor(11, 81, 56);
+    doc.rect(0, 0, W, H, 'F');
+    // Gold band
+    doc.setFillColor(201, 162, 75);
+    doc.rect(0, H - 60, W, 4, 'F');
+    // Brand
+    doc.setTextColor(201, 162, 75);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GILLCO GROUP', 40, 60, { charSpace: 3 });
+    doc.setTextColor(255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Punjab's Leading Luxury Real Estate Developer", 40, 78);
+
+    // Try to embed hero image
+    try {
+      const dataUrl = await imgToDataUrl(project.heroImage);
+      if (dataUrl) {
+        doc.addImage(dataUrl, 'JPEG', 40, 130, W - 80, 260, undefined, 'FAST');
+      }
+    } catch (e) { /* ignore image failures */ }
+
+    // Title
+    doc.setTextColor(255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(36);
+    doc.text(project.name || '', 40, 460);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(14);
+    doc.setTextColor(201, 162, 75);
+    doc.text(project.tagline || '', 40, 485);
+    doc.setTextColor(255);
+    doc.setFontSize(11);
+    doc.text(project.location || '', 40, 508);
+
+    // Status badge
+    const statusText = ({ delivered: 'DELIVERED', ongoing: 'ONGOING', upcoming: 'NEW LAUNCH' })[project.status] || 'PROJECT';
+    doc.setFillColor(201, 162, 75);
+    doc.roundedRect(40, 540, 100, 22, 3, 3, 'F');
+    doc.setTextColor(11, 81, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(statusText, 90, 555, { align: 'center' });
+
+    // Cover footer
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('helpdesk@gillcogroup.com  ·  +91 75290 19797  ·  gillcogroup.com', 40, H - 30);
+
+    // ===== Page 2 — Details =====
+    doc.addPage();
+    doc.setTextColor(11, 81, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(24);
+    doc.text('Project Overview', 40, 60);
+    doc.setDrawColor(201, 162, 75);
+    doc.setLineWidth(2);
+    doc.line(40, 68, 120, 68);
+
+    doc.setTextColor(60);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    const summary = project.summary || '';
+    const wrapped = doc.splitTextToSize(summary, W - 80);
+    doc.text(wrapped, 40, 95);
+    let y = 95 + wrapped.length * 14 + 15;
+
+    // Key facts
+    doc.setTextColor(11, 81, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text('Key Facts', 40, y);
+    y += 15;
+    const facts = [
+      ['Unit Mix', project.unitMix],
+      ['Price Range', project.priceRange],
+      ['Acres', String(project.acres ?? '')],
+      ['Towers', String(project.towers ?? '')],
+      ['Total Units', String(project.units ?? '')],
+      ['Launch', project.launchDate],
+      ['Handover', project.handoverDate],
+      ['Construction', `${project.constructionPercent ?? 0}% complete`],
+    ];
+    doc.setFontSize(10);
+    facts.forEach((f, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = 40 + col * ((W - 80) / 2);
+      const yy = y + row * 40;
+      doc.setFillColor(248, 245, 238);
+      doc.roundedRect(x, yy, (W - 80) / 2 - 10, 32, 3, 3, 'F');
+      doc.setTextColor(120);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(String(f[0]).toUpperCase(), x + 10, yy + 12);
+      doc.setTextColor(11, 81, 56);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(String(f[1] || '—'), x + 10, yy + 26);
+    });
+    y += Math.ceil(facts.length / 2) * 40 + 15;
+
+    // RERA
+    doc.setFillColor(11, 81, 56);
+    doc.roundedRect(40, y, W - 80, 70, 4, 4, 'F');
+    doc.setTextColor(201, 162, 75);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('RERA DISCLOSURE', 55, y + 20);
+    doc.setTextColor(255);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`RERA No.: ${project.reraNumber || 'N/A'}`, 55, y + 38);
+    doc.text(`Status: ${project.reraStatus || '—'}`, 55, y + 52);
+    doc.text(`Updated: ${project.reraUpdatedAt || '—'}`, 320, y + 52);
+    y += 90;
+
+    // Amenities
+    if (project.amenities?.length) {
+      doc.setTextColor(11, 81, 56);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text('Amenities', 40, y);
+      y += 15;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(60);
+      const perRow = 3;
+      project.amenities.forEach((a, i) => {
+        const col = i % perRow;
+        const row = Math.floor(i / perRow);
+        doc.text(`•  ${a}`, 45 + col * ((W - 80) / perRow), y + row * 16);
+      });
+      y += Math.ceil(project.amenities.length / perRow) * 16 + 10;
+    }
+
+    // Footer
+    doc.setDrawColor(201, 162, 75);
+    doc.setLineWidth(1);
+    doc.line(40, H - 60, W - 40, H - 60);
+    doc.setTextColor(120);
+    doc.setFontSize(8);
+    doc.text('© Gillco Group  ·  Established 2001  ·  Punjab, India', 40, H - 42);
+    doc.text('This brochure is generated from live CMS data.', 40, H - 30);
+    doc.setTextColor(11, 81, 56);
+    doc.setFont('helvetica', 'bold');
+    doc.text('helpdesk@gillcogroup.com  |  +91 75290 19797', W - 40, H - 30, { align: 'right' });
+
+    doc.save(`${(project.slug || 'gillco') + '-brochure'}.pdf`);
+    toast.success('Brochure downloaded', { id: 'broc' });
+  } catch (e) {
+    console.error(e);
+    toast.error('Failed to generate brochure', { id: 'broc' });
+  }
+}
+
+// Convert an image URL to a data URL for jsPDF embedding (best-effort)
+async function imgToDataUrl(url) {
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
+
 /* ============================ MAIN APP ============================ */
 function App() {
   const [view, setView] = useState('home'); // home | projects | about | team | news | contact | admin
@@ -714,7 +910,7 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
               <button onClick={() => onEnquire('detail-enquire')} className="px-6 py-3 bg-gillco-green text-white rounded-full font-medium">Enquire Now</button>
               <button onClick={() => onEnquire('schedule-visit')} className="px-6 py-3 gradient-gold text-slate-900 rounded-full font-semibold">Schedule a Visit</button>
               {project.status === 'upcoming' && <button onClick={() => onEnquire('soft-launch')} className="px-6 py-3 border-2 border-gillco-green text-gillco-green rounded-full font-medium">Book Soft Launch</button>}
-              <button className="px-6 py-3 border border-slate-300 text-slate-700 rounded-full font-medium inline-flex items-center gap-2"><Download className="w-4 h-4" /> Download Brochure</button>
+              <button onClick={() => downloadBrochure(project)} className="px-6 py-3 border border-slate-300 text-slate-700 rounded-full font-medium inline-flex items-center gap-2 hover:bg-slate-50"><Download className="w-4 h-4" /> Download Brochure</button>
             </div>
           </div>
         </div>
@@ -1320,6 +1516,7 @@ function ProjectEditor({ project, onSave, onClose }) {
           <Field label="Price Range" value={p.priceRange} onChange={v => setP({ ...p, priceRange: v })} />
           <Field label="Hero Image URL" value={p.heroImage} onChange={v => setP({ ...p, heroImage: v })} />
           <Field label="Tagline" value={p.tagline} onChange={v => setP({ ...p, tagline: v })} />
+          <Field label="Brochure URL (optional real PDF)" value={p.brochureUrl} onChange={v => setP({ ...p, brochureUrl: v })} />
         </div>
         <div className="mt-4">
           <label className="text-xs text-slate-500 uppercase">Summary</label>

@@ -2,16 +2,19 @@ import { MongoClient } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import { NextResponse } from 'next/server';
 
-let client;
+let clientPromise;
 let db;
 let seeded = false;
 
 async function connectToMongo() {
-  if (!client) {
-    client = new MongoClient(process.env.MONGO_URL);
-    await client.connect();
-    db = client.db(process.env.DB_NAME);
+  if (!clientPromise) {
+    const c = new MongoClient(process.env.MONGO_URL);
+    clientPromise = c.connect().then((connected) => {
+      db = connected.db(process.env.DB_NAME);
+      return connected;
+    });
   }
+  await clientPromise;
   return db;
 }
 
