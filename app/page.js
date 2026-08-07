@@ -421,7 +421,7 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gillco-cream">
         <div className="text-center">
-          <img src={settings?.logoDark || GILLCO_LOGO} alt="Gillco" className="h-16 mx-auto mb-4 animate-pulse" />
+          <img loading="lazy" decoding="async" src={settings?.logoDark || GILLCO_LOGO} alt="Gillco" className="h-16 mx-auto mb-4 animate-pulse" />
           <p className="text-gillco-green font-medium">Loading Gillco Group…</p>
         </div>
       </div>
@@ -595,7 +595,7 @@ function Header({ settings, view, goTo, mobileNav, setMobileNav, onEnquire }) {
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-100 no-print">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <button onClick={() => goTo('home')} className="flex items-center gap-3">
-            <img src={settings?.logoDark || GILLCO_LOGO} alt="Gillco Group" className="h-10 md:h-12" />
+            <img loading="lazy" decoding="async" src={settings?.logoDark || GILLCO_LOGO} alt="Gillco Group" className="h-10 md:h-12" />
           </button>
           <nav className="hidden lg:flex items-center gap-6">
             {nav.map(n => (
@@ -665,7 +665,7 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
               <div key={p.id} className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer" onClick={() => onProject(p)}>
                 {/* Image with gradient */}
                 <div className="relative h-56">
-                  <img src={safeImg(p.heroImage)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                  <img loading="lazy" decoding="async" src={safeImg(p.heroImage)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-gillco-green/60 to-transparent" />
                   <span className={`absolute top-4 left-4 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>
                   <div className="absolute bottom-3 left-4 right-4 text-white">
@@ -729,7 +729,7 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
           <div className="max-w-7xl mx-auto px-4">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div className="relative">
-                <img src={safeImg(featured.heroImage)} alt={featured.name} className="rounded-2xl shadow-2xl w-full aspect-[4/3] object-cover" />
+                <img loading="lazy" decoding="async" src={safeImg(featured.heroImage)} alt={featured.name} className="rounded-2xl shadow-2xl w-full aspect-[4/3] object-cover" />
                 <div className="absolute -bottom-6 -right-6 bg-gillco-green text-white p-6 rounded-2xl shadow-xl hidden md:block">
                   <div className="text-4xl font-serif text-gillco-gold">{featured.acres}</div>
                   <div className="text-xs uppercase tracking-wider">Acres</div>
@@ -776,7 +776,7 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
             <div className="grid md:grid-cols-3 gap-6">
               {settings.videos.map(v => (
                 <button key={v.id} onClick={() => onVideo(v)} className="group relative rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all">
-                  <img src={safeImg(v.poster)} alt={v.title} className="w-full h-64 object-cover group-hover:scale-110 transition duration-700" />
+                  <img loading="lazy" decoding="async" src={safeImg(v.poster)} alt={v.title} className="w-full h-64 object-cover group-hover:scale-110 transition duration-700" />
                   <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-transparent to-transparent" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-20 h-20 rounded-full bg-gillco-gold/90 backdrop-blur flex items-center justify-center shadow-2xl group-hover:scale-110 transition ring-4 ring-white/30">
@@ -905,7 +905,7 @@ function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
   return (
     <div className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-1 transition-all">
       <div className="relative h-64 overflow-hidden">
-        <img src={safeImg(project.heroImage)} alt={project.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+        <img loading="lazy" decoding="async" src={safeImg(project.heroImage)} alt={project.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
         <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
         <span className="absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-800 capitalize">{project.category}</span>
       </div>
@@ -1001,7 +1001,7 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
         <div className="bg-white w-full max-w-6xl rounded-3xl overflow-hidden shadow-2xl">
           {/* Gallery */}
           <div className="relative h-96 bg-slate-100">
-            <img src={safeImg(gallery[imgIdx])} alt={project.name} className="w-full h-full object-cover" />
+            <img loading="lazy" decoding="async" src={safeImg(gallery[imgIdx])} alt={project.name} className="w-full h-full object-cover" />
             <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center"><X className="w-5 h-5" /></button>
             <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
             {project.youtubeId && (
@@ -1029,7 +1029,7 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
                     onClick={() => setImgIdx(i)}
                     className={`shrink-0 w-20 h-14 rounded-md overflow-hidden ring-2 transition ${i === imgIdx ? 'ring-gillco-gold' : 'ring-transparent hover:ring-gillco-green/50'}`}
                   >
-                    <img src={safeImg(g)} alt="" className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={safeImg(g)} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -1142,7 +1142,7 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
                       onClick={() => onWatchVideo?.({ title: `${project.name} — ${v.title}`, poster: v.poster, youtubeId: v.youtubeId })}
                       className="group relative rounded-xl overflow-hidden aspect-video bg-slate-100 shadow-md hover:shadow-2xl transition"
                     >
-                      <img src={safeImg(v.poster)} alt={v.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+                      <img loading="lazy" decoding="async" src={safeImg(v.poster)} alt={v.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-12 h-12 rounded-full bg-red-500/95 flex items-center justify-center shadow-lg ring-2 ring-white/50 group-hover:scale-110 transition">
@@ -1266,7 +1266,7 @@ function CompareModal({ projects, onClose, onRemove }) {
                     <th className="text-left p-3 bg-gillco-cream text-gillco-green text-sm font-semibold w-40">Attribute</th>
                     {projects.map(p => (
                       <th key={p.id} className="p-3 bg-gillco-cream text-left align-top min-w-[200px]">
-                        <img src={safeImg(p.heroImage)} alt={p.name} className="w-full h-32 object-cover rounded-lg mb-2" />
+                        <img loading="lazy" decoding="async" src={safeImg(p.heroImage)} alt={p.name} className="w-full h-32 object-cover rounded-lg mb-2" />
                         <div className="font-serif text-lg text-gillco-green">{p.name}</div>
                         <div className="text-xs text-slate-500">{p.location}</div>
                         <button onClick={() => onRemove(p.id)} className="mt-2 text-xs text-red-600 inline-flex items-center gap-1 no-print"><Trash2 className="w-3 h-3" /> Remove</button>
@@ -1463,7 +1463,7 @@ function VideoModal({ video, onClose }) {
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white">
-              <img src={safeImg(video.poster)} alt={video.title} className="w-full h-full object-cover opacity-60" />
+              <img loading="lazy" decoding="async" src={safeImg(video.poster)} alt={video.title} className="w-full h-full object-cover opacity-60" />
               <div className="absolute text-center">
                 <p className="text-lg">Video coming soon</p>
                 <p className="text-sm text-white/60 mt-1">Contact us for a personalized walkthrough</p>
@@ -1563,7 +1563,7 @@ function TeamView({ team }) {
           {team.map(m => (
             <div key={m.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition group">
               <div className="h-72 overflow-hidden bg-slate-100">
-                <img src={safeImg(m.photo)} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                <img loading="lazy" decoding="async" src={safeImg(m.photo)} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
               </div>
               <div className="p-6">
                 <h3 className="font-serif text-2xl text-gillco-green">{m.name}</h3>
@@ -1786,7 +1786,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
               {projects.map(p => (
                 <div key={p.id} className="bg-white rounded-xl p-4 border border-slate-100 flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                    <img src={safeImg(p.heroImage)} className="w-20 h-16 object-cover rounded" alt="" />
+                    <img loading="lazy" decoding="async" src={safeImg(p.heroImage)} className="w-20 h-16 object-cover rounded" alt="" />
                     <div>
                       <div className="font-serif text-xl text-gillco-green">{p.name}</div>
                       <div className="text-xs text-slate-500">{p.location} · {p.reraNumber}</div>
@@ -2010,7 +2010,7 @@ function TeamEditor({ team, setTeam }) {
       <div className="grid md:grid-cols-3 gap-3">
         {team.map(m => (
           <div key={m.id} className="border border-slate-100 rounded-xl p-4 text-center">
-            <img src={safeImg(m.photo)} alt={m.name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2" />
+            <img loading="lazy" decoding="async" src={safeImg(m.photo)} alt={m.name} className="w-24 h-24 rounded-full object-cover mx-auto mb-2" />
             <div className="font-serif text-lg text-gillco-green">{m.name}</div>
             <div className="text-xs text-gillco-gold uppercase">{m.role}</div>
             <div className="flex justify-center gap-2 mt-3">
@@ -2480,7 +2480,7 @@ function ProjectEditor({ project, onSave, onClose }) {
           <div className="mt-3 flex gap-2 flex-wrap">
             {p.gallery.map((g, i) => (
               <div key={i} className="relative group">
-                <img src={safeImg(g)} alt="" className="w-24 h-16 object-cover rounded" />
+                <img loading="lazy" decoding="async" src={safeImg(g)} alt="" className="w-24 h-16 object-cover rounded" />
                 <button onClick={() => removeGallery(i)} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs">×</button>
               </div>
             ))}
@@ -2624,7 +2624,7 @@ function MediaUploader({ label, value, onChange, accept = 'image/*', hint = 'PNG
         {value && (
           <div className="w-24 h-24 rounded-lg overflow-hidden border border-slate-200 relative group shrink-0">
             {isImage ? (
-              <img src={safeImg(value)} alt="preview" className="w-full h-full object-cover" />
+              <img loading="lazy" decoding="async" src={safeImg(value)} alt="preview" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-xs text-slate-500 bg-slate-100 p-1 text-center">{value.split('/').pop()}</div>
             )}
@@ -2643,7 +2643,7 @@ function Footer({ settings, goTo }) {
     <footer className="bg-gillco-green-dark text-white pt-16 pb-8 no-print">
       <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-10">
         <div className="md:col-span-2">
-          <img src={settings?.logoWhite || GILLCO_LOGO_WHITE} alt="Gillco Group" className="h-14 mb-4" />
+          <img loading="lazy" decoding="async" src={settings?.logoWhite || GILLCO_LOGO_WHITE} alt="Gillco Group" className="h-14 mb-4" />
           <p className="text-white/70 leading-relaxed max-w-md">
             Punjab's leading luxury real estate developer since 2001. Curating legacy spaces with modern design.
           </p>
