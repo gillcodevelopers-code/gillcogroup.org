@@ -1323,18 +1323,8 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
     try {
       const proj = projects.find(p => p.id === form.projectId);
       const projectName = proj?.name || form.projectName || 'General';
-      await api('/enquiries', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...form,
-          projectName,
-          type: prefill.type || 'general',
-          utm,
-        }),
-      });
-      toast.success('Thank you! Routing to WhatsApp for instant confirmation…');
 
-      // Sales team round-robin — pick next active member from salesTeam
+      // Sales team round-robin — pick next active member BEFORE saving
       const active = (settings?.salesTeam || []).filter(s => s.active !== false && s.whatsapp);
       let picked;
       if (active.length > 0) {
@@ -1344,6 +1334,20 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
         picked = active[idx % active.length];
         localStorage.setItem(key, String((idx + 1) % active.length));
       }
+
+      await api('/enquiries', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          projectName,
+          type: prefill.type || 'general',
+          utm,
+          routedTo: picked?.name || null,
+          routedToId: picked?.id || null,
+        }),
+      });
+      toast.success('Thank you! Routing to WhatsApp for instant confirmation…');
+
       const adminWA = picked?.whatsapp || settings?.whatsapp || '919041795879';
       const agentLabel = picked?.name || 'Gillco Sales Team';
       const src = utm.utm_source || 'website';
@@ -1824,27 +1828,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
           }} />
         )}
         {tab === 'enquiries' && (
-          <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gillco-cream">
-                <tr><th className="text-left p-3">Date</th><th className="text-left p-3">Name</th><th className="text-left p-3">Phone</th><th className="text-left p-3">Email</th><th className="text-left p-3">Project</th><th className="text-left p-3">Source</th></tr>
-              </thead>
-              <tbody>
-                {enquiries.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-slate-500">No enquiries yet.</td></tr>
-                ) : enquiries.map(e => (
-                  <tr key={e.id} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="p-3 text-xs">{new Date(e.createdAt).toLocaleString('en-IN')}</td>
-                    <td className="p-3 font-medium">{e.name}</td>
-                    <td className="p-3">{e.phone}</td>
-                    <td className="p-3">{e.email || '—'}</td>
-                    <td className="p-3">{e.projectName || '—'}</td>
-                    <td className="p-3"><span className="text-xs bg-gillco-cream text-gillco-green px-2 py-0.5 rounded-full">{e.type}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <EnquiriesPanel settings={settings} />
         )}
 
         {editing && <ProjectEditor project={editing} onSave={saveProject} onClose={() => setEditing(null)} />}
@@ -2118,6 +2102,18 @@ function SettingsEditor({ settings, onSave }) {
         </button>
       </div>
 
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Lead Overflow / Auto-Escalation</h4>
+      <p className="text-xs text-slate-500 -mt-2">If no agent claims a lead within X minutes, the admin panel flags it as OVERDUE and offers a one-click escalation to the manager's WhatsApp.</p>
+      <div className="grid md:grid-cols-3 gap-3 items-end">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={s.leadOverflow?.enabled} onChange={e => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), enabled: e.target.checked } })} />
+          Enable overflow tracking
+        </label>
+        <Field label="Escalate after (minutes)" type="number" value={s.leadOverflow?.minutes} onChange={v => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), minutes: Number(v) } })} />
+        <Field label="Manager Name" value={s.leadOverflow?.managerName} onChange={v => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), managerName: v } })} />
+      </div>
+      <Field label="Manager WhatsApp (digits, no +)" value={s.leadOverflow?.managerWhatsapp} onChange={v => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), managerWhatsapp: v } })} />
+
       <h4 className="font-serif text-xl text-gillco-green mt-6">Popup Form Config</h4>
       <div className="grid md:grid-cols-3 gap-4 items-end">
         <label className="flex items-center gap-2 text-sm">
@@ -2129,6 +2125,187 @@ function SettingsEditor({ settings, onSave }) {
       </div>
 
       <button onClick={() => onSave(s)} className="mt-6 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save All Settings</button>
+    </div>
+  );
+}
+
+function EnquiriesPanel({ settings }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const overflowMin = settings?.leadOverflow?.minutes || 15;
+  const managerWA = settings?.leadOverflow?.managerWhatsapp || settings?.whatsapp;
+  const managerName = settings?.leadOverflow?.managerName || 'Sales Manager';
+
+  const load = async () => {
+    try { setItems(await api('/enquiries')); } catch {}
+    setLoading(false);
+  };
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000); // auto-refresh every 30s
+    return () => clearInterval(t);
+  }, []);
+
+  const now = Date.now();
+  const isOverdue = (e) => {
+    if (e.claimed) return false;
+    const created = new Date(e.createdAt).getTime();
+    return (now - created) / 60000 > overflowMin;
+  };
+
+  const claim = async (e) => {
+    try {
+      await api(`/enquiries/${e.id}/claim`, { method: 'POST', body: JSON.stringify({ by: 'admin' }) });
+      toast.success(`Lead claimed`);
+      load();
+    } catch { toast.error('Claim failed'); }
+  };
+
+  const escalate = async (e) => {
+    try {
+      await api(`/enquiries/${e.id}/escalate`, { method: 'POST' });
+      // Open manager WhatsApp with escalation message
+      const waLines = [
+        '🚨 *LEAD ESCALATION — Gillco Group*',
+        '',
+        `⚠️ Unclaimed for >${overflowMin} minutes`,
+        `👤 Name: ${e.name}`,
+        `📞 Phone: ${e.phone}`,
+        e.email ? `✉️ Email: ${e.email}` : null,
+        `🏢 Project: ${e.projectName || '—'}`,
+        e.routedTo ? `👥 Originally routed to: ${e.routedTo}` : null,
+        e.message ? `💬 Message: ${e.message}` : null,
+        `🕒 Received: ${new Date(e.createdAt).toLocaleString('en-IN')}`,
+      ].filter(Boolean).join('\n');
+      if (managerWA) {
+        window.open(`https://wa.me/${managerWA}?text=${encodeURIComponent(waLines)}`, '_blank', 'noopener,noreferrer');
+      }
+      toast.success(`Escalated to ${managerName}`);
+      load();
+    } catch { toast.error('Escalate failed'); }
+  };
+
+  const filtered = items.filter(e => {
+    if (filter === 'overdue') return isOverdue(e) && !e.escalated;
+    if (filter === 'claimed') return e.claimed;
+    if (filter === 'escalated') return e.escalated;
+    if (filter === 'new') return !e.claimed && !isOverdue(e) && !e.escalated;
+    return true;
+  });
+
+  const overdueCount = items.filter(e => isOverdue(e) && !e.escalated).length;
+
+  return (
+    <div className="space-y-4">
+      {/* Overflow alert bar */}
+      {overdueCount > 0 && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-red-500 text-white flex items-center justify-center font-bold animate-pulse">{overdueCount}</div>
+            <div>
+              <div className="font-serif text-lg text-red-700">Lead overflow — {overdueCount} unclaimed for &gt; {overflowMin} min</div>
+              <div className="text-xs text-red-600">Escalate to {managerName} to prevent lost revenue.</div>
+            </div>
+          </div>
+          <button onClick={() => setFilter('overdue')} className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-semibold">Show Overdue</button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-slate-100 p-4">
+        {/* Filters */}
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {[
+            ['all', 'All', items.length],
+            ['new', 'New', items.filter(e => !e.claimed && !isOverdue(e) && !e.escalated).length],
+            ['overdue', 'Overdue', overdueCount],
+            ['claimed', 'Claimed', items.filter(e => e.claimed).length],
+            ['escalated', 'Escalated', items.filter(e => e.escalated).length],
+          ].map(([k, label, count]) => (
+            <button
+              key={k}
+              onClick={() => setFilter(k)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-1.5 ${filter === k ? 'bg-gillco-green text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'} ${k === 'overdue' && count > 0 ? 'ring-2 ring-red-400' : ''}`}
+            >
+              {label} <span className="opacity-70">({count})</span>
+            </button>
+          ))}
+          <button onClick={load} className="ml-auto px-3 py-1.5 border border-slate-300 rounded-full text-xs">Refresh</button>
+        </div>
+
+        {loading ? (
+          <div className="py-10 text-center text-slate-500">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-10 text-center text-slate-500">No enquiries in this filter.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gillco-cream">
+                <tr>
+                  <th className="text-left p-3 text-xs uppercase text-slate-600">Received</th>
+                  <th className="text-left p-3 text-xs uppercase text-slate-600">Lead</th>
+                  <th className="text-left p-3 text-xs uppercase text-slate-600">Project</th>
+                  <th className="text-left p-3 text-xs uppercase text-slate-600">Routed To</th>
+                  <th className="text-left p-3 text-xs uppercase text-slate-600">Status</th>
+                  <th className="text-left p-3 text-xs uppercase text-slate-600">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(e => {
+                  const overdue = isOverdue(e);
+                  const ageMin = Math.floor((now - new Date(e.createdAt).getTime()) / 60000);
+                  return (
+                    <tr key={e.id} className={`border-t border-slate-100 ${overdue && !e.escalated ? 'bg-red-50/40' : ''}`}>
+                      <td className="p-3 text-xs text-slate-600 whitespace-nowrap">
+                        <div>{new Date(e.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-[10px] text-slate-400">{ageMin < 60 ? `${ageMin}m ago` : `${Math.floor(ageMin / 60)}h ${ageMin % 60}m ago`}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-medium text-slate-800">{e.name}</div>
+                        <div className="text-xs text-slate-500">{e.phone}{e.email ? ` · ${e.email}` : ''}</div>
+                      </td>
+                      <td className="p-3 text-xs">{e.projectName || '—'}</td>
+                      <td className="p-3 text-xs">
+                        {e.routedTo ? (
+                          <span className="text-gillco-green font-medium">{e.routedTo}</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {e.escalated ? (
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500 text-white">ESCALATED</span>
+                        ) : e.claimed ? (
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-600 text-white">CLAIMED</span>
+                        ) : overdue ? (
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-500 text-white animate-pulse">OVERDUE</span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-500 text-white">NEW</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex gap-1.5">
+                          {!e.claimed && !e.escalated && (
+                            <button onClick={() => claim(e)} className="px-2.5 py-1 bg-emerald-600 text-white text-xs rounded-full">Claim</button>
+                          )}
+                          {overdue && !e.escalated && (
+                            <button onClick={() => escalate(e)} className="px-2.5 py-1 bg-red-600 text-white text-xs rounded-full animate-pulse inline-flex items-center gap-1"><MessageCircle className="w-3 h-3" /> Escalate</button>
+                          )}
+                          <a
+                            href={`https://wa.me/91${e.phone.replace(/\D/g, '').replace(/^91/, '')}?text=${encodeURIComponent(`Hi ${e.name}, thanks for your enquiry about ${e.projectName || 'Gillco Group'}.`)}`}
+                            target="_blank" rel="noreferrer"
+                            className="px-2.5 py-1 border border-slate-300 text-slate-700 text-xs rounded-full inline-flex items-center gap-1"
+                          ><MessageCircle className="w-3 h-3" /> WA Lead</a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

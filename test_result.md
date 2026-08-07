@@ -101,6 +101,18 @@
 ## user_problem_statement: Phase 2 — Real Gillco Group website (data from gillcogroup.com). Next.js + MongoDB backend with in-app CMS. Real projects, RERA, team, news, contact seeded. PDF export for compare tool. Admin panel protected by simple password.
 
 ## backend:
+  - task: "Lead Overflow — POST /api/enquiries/:id/claim, POST /api/enquiries/:id/escalate + routedTo tracking"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added: (1) Enhanced POST /api/enquiries to persist routedTo, routedToId, claimed=false, escalated=false. (2) POST /api/enquiries/:id/claim — marks claimed=true with claimedBy/claimedAt. (3) POST /api/enquiries/:id/escalate — marks escalated=true with escalatedAt. (4) Settings gained leadOverflow: { enabled, minutes, managerName, managerWhatsapp }. Please test claim/escalate endpoints and verify enquiries store routedTo/claimed/escalated fields."
+
   - task: "Media upload endpoint (POST /api/upload) + Change history (GET /api/history, POST /api/history/:id/undo) + auto-history logging on all mutations"
     implemented: true
     working: true

@@ -314,6 +314,17 @@ const SEED_SETTINGS = {
   address: 'Gillco Group Corporate Office, Airport Road, Mohali, Punjab, India',
   founded: 2001,
   stats: { years: 25, projects: 8, families: 1577, sqft: '11M+' },
+  salesTeam: [
+    { id: 's1', name: 'Sales — Meraqui Desk', whatsapp: '919041795879', role: 'Senior Advisor', active: true },
+    { id: 's2', name: 'Sales — Residential', whatsapp: '919517889797', role: 'Advisor', active: true },
+    { id: 's3', name: 'Sales — Industrial Park', whatsapp: '917529019797', role: 'Industrial Specialist', active: true },
+  ],
+  leadOverflow: {
+    enabled: true,
+    minutes: 15,
+    managerName: 'Sales Manager',
+    managerWhatsapp: '919041795879',
+  },
   popup: { enabled: true, delaySeconds: 6, cookieHours: 24 },
   social: {
     facebook: 'https://www.facebook.com/gillcogroup',
@@ -514,6 +525,13 @@ async function handleRoute(request, { params }) {
         type: body.type || 'general',
         utm: body.utm || {},
         consent: !!body.consent,
+        routedTo: body.routedTo || null,
+        routedToId: body.routedToId || null,
+        claimed: false,
+        claimedBy: null,
+        claimedAt: null,
+        escalated: false,
+        escalatedAt: null,
         createdAt: new Date().toISOString(),
       };
       if (!doc.name || !doc.phone) {
@@ -525,6 +543,25 @@ async function handleRoute(request, { params }) {
     if (route === '/enquiries' && method === 'GET') {
       const items = await db.collection('enquiries').find({}).sort({ createdAt: -1 }).limit(500).toArray();
       return cors(NextResponse.json(items.map(strip)));
+    }
+    if (route.startsWith('/enquiries/') && route.endsWith('/claim') && method === 'POST') {
+      const id = route.split('/')[2];
+      const body = await request.json().catch(() => ({}));
+      await db.collection('enquiries').updateOne(
+        { id },
+        { $set: { claimed: true, claimedBy: body.by || 'admin', claimedAt: new Date().toISOString() } }
+      );
+      const doc = await db.collection('enquiries').findOne({ id });
+      return cors(NextResponse.json(strip(doc)));
+    }
+    if (route.startsWith('/enquiries/') && route.endsWith('/escalate') && method === 'POST') {
+      const id = route.split('/')[2];
+      await db.collection('enquiries').updateOne(
+        { id },
+        { $set: { escalated: true, escalatedAt: new Date().toISOString() } }
+      );
+      const doc = await db.collection('enquiries').findOne({ id });
+      return cors(NextResponse.json(strip(doc)));
     }
 
     // ---------- NEWS ----------
