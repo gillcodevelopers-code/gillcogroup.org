@@ -421,7 +421,7 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gillco-cream">
         <div className="text-center">
-          <img src={GILLCO_LOGO} alt="Gillco" className="h-16 mx-auto mb-4 animate-pulse" />
+          <img src={settings?.logoDark || GILLCO_LOGO} alt="Gillco" className="h-16 mx-auto mb-4 animate-pulse" />
           <p className="text-gillco-green font-medium">Loading Gillco Group…</p>
         </div>
       </div>
@@ -513,6 +513,7 @@ function App() {
           onEnquire={(t) => { setActiveProject(null); openEnquiry({ type: t, projectId: activeProject.id, projectName: activeProject.name }); }}
           onCompareToggle={toggleCompare}
           inCompare={compare.includes(activeProject.id)}
+          onWatchVideo={setShowVideo}
         />
       )}
 
@@ -552,6 +553,7 @@ function Header({ settings, view, goTo, mobileNav, setMobileNav, onEnquire }) {
     { id: 'team', label: 'Team' },
     { id: 'news', label: 'Spotlight' },
     { id: 'contact', label: 'Contact' },
+    { id: 'admin', label: 'Admin', highlight: true },
   ];
   return (
     <>
@@ -593,12 +595,17 @@ function Header({ settings, view, goTo, mobileNav, setMobileNav, onEnquire }) {
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-100 no-print">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <button onClick={() => goTo('home')} className="flex items-center gap-3">
-            <img src={GILLCO_LOGO} alt="Gillco Group" className="h-10 md:h-12" />
+            <img src={settings?.logoDark || GILLCO_LOGO} alt="Gillco Group" className="h-10 md:h-12" />
           </button>
           <nav className="hidden lg:flex items-center gap-6">
             {nav.map(n => (
               <button key={n.id} onClick={() => goTo(n.id)}
-                className={`text-sm font-medium transition ${view === n.id ? 'text-gillco-green' : 'text-slate-600 hover:text-gillco-green'}`}>
+                className={`text-sm font-medium transition ${
+                  n.highlight
+                    ? (view === n.id ? 'text-gillco-gold' : 'text-gillco-gold/80 hover:text-gillco-gold inline-flex items-center gap-1')
+                    : (view === n.id ? 'text-gillco-green' : 'text-slate-600 hover:text-gillco-green')
+                }`}>
+                {n.highlight && <Edit3 className="w-3 h-3 inline mr-1" />}
                 {n.label}
               </button>
             ))}
@@ -984,7 +991,7 @@ function ProjectsView({ projects, all, statusFilter, setStatusFilter, categoryFi
 }
 
 /* ============================ PROJECT DETAIL MODAL ============================ */
-function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare }) {
+function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare, onWatchVideo }) {
   const s = STATUS_MAP[project.status];
   const [imgIdx, setImgIdx] = useState(0);
   const gallery = project.gallery?.length ? project.gallery : [project.heroImage];
@@ -997,13 +1004,37 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
             <img src={safeImg(gallery[imgIdx])} alt={project.name} className="w-full h-full object-cover" />
             <button onClick={onClose} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center"><X className="w-5 h-5" /></button>
             <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
+            {project.youtubeId && (
+              <button onClick={() => onWatchVideo?.({ title: project.name + ' — Walkthrough', poster: project.heroImage, youtubeId: project.youtubeId })} className="absolute inset-0 m-auto w-20 h-20 rounded-full bg-red-500/90 hover:bg-red-500 backdrop-blur flex items-center justify-center text-white shadow-2xl transition group ring-4 ring-white/30" title="Play video walkthrough">
+                <Play className="w-8 h-8 ml-1" fill="currentColor" />
+              </button>
+            )}
             {gallery.length > 1 && (
               <>
                 <button onClick={() => setImgIdx((imgIdx - 1 + gallery.length) % gallery.length)} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center"><ChevronLeft /></button>
                 <button onClick={() => setImgIdx((imgIdx + 1) % gallery.length)} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center"><ChevronRight /></button>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur">
+                  <span className="text-white text-xs font-medium">{imgIdx + 1} / {gallery.length}</span>
+                </div>
               </>
             )}
           </div>
+          {/* Thumbnail strip */}
+          {gallery.length > 1 && (
+            <div className="px-6 pt-4 pb-2 border-b border-slate-100">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                {gallery.map((g, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setImgIdx(i)}
+                    className={`shrink-0 w-20 h-14 rounded-md overflow-hidden ring-2 transition ${i === imgIdx ? 'ring-gillco-gold' : 'ring-transparent hover:ring-gillco-green/50'}`}
+                  >
+                    <img src={safeImg(g)} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="p-8">
             <div className="flex items-start justify-between flex-wrap gap-4">
               <div>
@@ -1102,6 +1133,11 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
               <button onClick={() => onEnquire('detail-enquire')} className="px-6 py-3 bg-gillco-green text-white rounded-full font-medium">Enquire Now</button>
               <button onClick={() => onEnquire('schedule-visit')} className="px-6 py-3 gradient-gold text-slate-900 rounded-full font-semibold">Schedule a Visit</button>
               {project.status === 'upcoming' && <button onClick={() => onEnquire('soft-launch')} className="px-6 py-3 border-2 border-gillco-green text-gillco-green rounded-full font-medium">Book Soft Launch</button>}
+              {project.youtubeId && (
+                <button onClick={() => onWatchVideo?.({ title: project.name + ' — Walkthrough', poster: project.heroImage, youtubeId: project.youtubeId })} className="px-6 py-3 border-2 border-red-500 text-red-600 rounded-full font-medium inline-flex items-center gap-2 hover:bg-red-50">
+                  <Play className="w-4 h-4" fill="currentColor" /> Watch Video
+                </button>
+              )}
               <button onClick={() => downloadBrochure(project)} className="px-6 py-3 border border-slate-300 text-slate-700 rounded-full font-medium inline-flex items-center gap-2 hover:bg-slate-50"><Download className="w-4 h-4" /> Download Brochure</button>
             </div>
           </div>
@@ -1974,6 +2010,12 @@ function SettingsEditor({ settings, onSave }) {
         <Field label="Sq. Ft. Developed" value={s.stats?.sqft} onChange={v => setS({ ...s, stats: { ...(s.stats || {}), sqft: v } })} />
       </div>
 
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Site Logo</h4>
+      <div className="grid md:grid-cols-2 gap-4">
+        <MediaUploader label="Primary Logo (dark background OK)" value={s.logoDark} onChange={v => setS({ ...s, logoDark: v })} accept="image/*" hint="Square or landscape PNG/SVG, transparent" />
+        <MediaUploader label="Footer Logo (white version)" value={s.logoWhite} onChange={v => setS({ ...s, logoWhite: v })} accept="image/*" hint="White version for dark footer" />
+      </div>
+
       <h4 className="font-serif text-xl text-gillco-green mt-6">Social Media</h4>
       <div className="grid md:grid-cols-2 gap-3">
         <Field label="Facebook URL" value={s.social?.facebook} onChange={v => setS({ ...s, social: { ...(s.social || {}), facebook: v } })} />
@@ -2155,6 +2197,9 @@ function ProjectEditor({ project, onSave, onClose }) {
         <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Media</h4>
         <MediaUploader label="Hero Image" value={p.heroImage} onChange={v => setP({ ...p, heroImage: v })} accept="image/*" />
         <div className="mt-3">
+          <Field label="YouTube Video ID (e.g. dQw4w9WgXcQ) — for project walkthrough" value={p.youtubeId} onChange={v => setP({ ...p, youtubeId: v })} />
+        </div>
+        <div className="mt-3">
           <MediaUploader label="Brochure PDF (optional)" value={p.brochureUrl} onChange={v => setP({ ...p, brochureUrl: v })} accept="application/pdf" hint="PDF files only, up to 15 MB" />
         </div>
         <div className="mt-3">
@@ -2310,7 +2355,7 @@ function Footer({ settings, goTo }) {
     <footer className="bg-gillco-green-dark text-white pt-16 pb-8 no-print">
       <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-10">
         <div className="md:col-span-2">
-          <img src={GILLCO_LOGO_WHITE} alt="Gillco Group" className="h-14 mb-4" />
+          <img src={settings?.logoWhite || GILLCO_LOGO_WHITE} alt="Gillco Group" className="h-14 mb-4" />
           <p className="text-white/70 leading-relaxed max-w-md">
             Punjab's leading luxury real estate developer since 2001. Curating legacy spaces with modern design.
           </p>
