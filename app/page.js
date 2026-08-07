@@ -1291,16 +1291,36 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
     setSubmitting(true);
     try {
       const proj = projects.find(p => p.id === form.projectId);
+      const projectName = proj?.name || form.projectName || 'General';
       await api('/enquiries', {
         method: 'POST',
         body: JSON.stringify({
           ...form,
-          projectName: proj?.name || form.projectName,
+          projectName,
           type: prefill.type || 'general',
           utm,
         }),
       });
-      toast.success('Thank you! Our team will contact you shortly.');
+      toast.success('Thank you! Routing to WhatsApp for instant confirmation…');
+
+      // Auto-fire WhatsApp to admin with lead details
+      const adminWA = settings?.whatsapp || '919041795879';
+      const src = utm.utm_source || 'website';
+      const waLines = [
+        '🔔 *New Enquiry — Gillco Group Website*',
+        '',
+        `👤 Name: ${form.name}`,
+        `📞 Phone: ${form.phone}`,
+        form.email ? `✉️ Email: ${form.email}` : null,
+        `🏢 Project: ${projectName}`,
+        form.message ? `💬 Message: ${form.message}` : null,
+        `🎯 Type: ${prefill.type || 'general'}`,
+        `📥 Source: ${src}`,
+        `🕒 ${new Date().toLocaleString('en-IN')}`,
+      ].filter(Boolean).join('\n');
+      const waUrl = `https://wa.me/${adminWA}?text=${encodeURIComponent(waLines)}`;
+      // Open a new tab; user (lead) taps Send to route to admin's WhatsApp
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
       onClose();
     } catch (err) {
       toast.error('Submission failed. Please try again.');
@@ -1361,9 +1381,10 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
               <input type="checkbox" checked={form.consent} onChange={e => setForm({ ...form, consent: e.target.checked })} className="mt-0.5" />
               I consent to Gillco Group storing my details to contact me about my enquiry. I understand my data will not be shared with third parties without consent.
             </label>
-            <button type="submit" disabled={submitting} className="w-full py-3 gradient-emerald text-white rounded-full font-semibold hover:brightness-110 disabled:opacity-50 transition">
-              {submitting ? 'Sending…' : 'Submit Enquiry'}
+            <button type="submit" disabled={submitting} className="w-full py-3 gradient-emerald text-white rounded-full font-semibold hover:brightness-110 disabled:opacity-50 transition inline-flex items-center justify-center gap-2">
+              {submitting ? 'Sending…' : (<>Submit &amp; Confirm on WhatsApp <MessageCircle className="w-4 h-4" /></>)}
             </button>
+            <p className="text-center text-[11px] text-slate-500">On submit, WhatsApp opens with your details pre-filled — just tap Send to instantly reach our sales team.</p>
             <p className="text-center text-xs text-slate-500">
               Or call <a className="text-gillco-green font-semibold" href={`tel:${settings?.phone}`}>{settings?.phone}</a>
             </p>
@@ -1386,7 +1407,7 @@ function VideoModal({ video, onClose }) {
           </div>
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"><X className="w-5 h-5" /></button>
         </div>
-        <div className="aspect-video w-full rounded-2xl overflow-hidden shadow-2xl bg-black">
+        <div className="aspect-video w-full rounded-2xl overflow-hidden shadow-2xl bg-black relative">
           {video.youtubeId ? (
             <iframe
               className="w-full h-full"
@@ -1405,6 +1426,18 @@ function VideoModal({ video, onClose }) {
             </div>
           )}
         </div>
+        {video.youtubeId && (
+          <div className="mt-3 flex justify-center">
+            <a
+              href={`https://www.youtube.com/watch?v=${video.youtubeId}`}
+              target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-gillco-gold transition"
+            >
+              <Youtube className="w-4 h-4 text-red-500" />
+              If embed doesn't play, watch on YouTube <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
