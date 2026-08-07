@@ -1128,6 +1128,37 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
               </div>
             )}
 
+            {/* Video Gallery (multi-angle playlist) */}
+            {project.videos?.length > 0 && (
+              <div className="mt-8">
+                <div className="flex items-baseline justify-between mb-4">
+                  <h3 className="font-serif text-2xl text-gillco-green">Video Gallery</h3>
+                  <span className="text-xs text-slate-500 uppercase tracking-widest">{project.videos.length} angles</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {project.videos.map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => onWatchVideo?.({ title: `${project.name} — ${v.title}`, poster: v.poster, youtubeId: v.youtubeId })}
+                      className="group relative rounded-xl overflow-hidden aspect-video bg-slate-100 shadow-md hover:shadow-2xl transition"
+                    >
+                      <img src={safeImg(v.poster)} alt={v.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-red-500/95 flex items-center justify-center shadow-lg ring-2 ring-white/50 group-hover:scale-110 transition">
+                          <Play className="w-5 h-5 text-white ml-0.5" fill="currentColor" />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-2 left-2 right-2 text-left">
+                        {v.angle && <p className="text-[10px] uppercase tracking-widest text-gillco-gold font-bold">{v.angle}</p>}
+                        <p className="text-sm text-white font-semibold line-clamp-1">{v.title}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* CTAs */}
             <div className="mt-8 flex flex-wrap gap-3">
               <button onClick={() => onEnquire('detail-enquire')} className="px-6 py-3 bg-gillco-green text-white rounded-full font-medium">Enquire Now</button>
@@ -1303,8 +1334,18 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
       });
       toast.success('Thank you! Routing to WhatsApp for instant confirmation…');
 
-      // Auto-fire WhatsApp to admin with lead details
-      const adminWA = settings?.whatsapp || '919041795879';
+      // Sales team round-robin — pick next active member from salesTeam
+      const active = (settings?.salesTeam || []).filter(s => s.active !== false && s.whatsapp);
+      let picked;
+      if (active.length > 0) {
+        const key = 'gillco_sales_rr';
+        let idx = parseInt(localStorage.getItem(key) || '0', 10);
+        if (isNaN(idx) || idx < 0) idx = 0;
+        picked = active[idx % active.length];
+        localStorage.setItem(key, String((idx + 1) % active.length));
+      }
+      const adminWA = picked?.whatsapp || settings?.whatsapp || '919041795879';
+      const agentLabel = picked?.name || 'Gillco Sales Team';
       const src = utm.utm_source || 'website';
       const waLines = [
         '🔔 *New Enquiry — Gillco Group Website*',
@@ -1316,10 +1357,10 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
         form.message ? `💬 Message: ${form.message}` : null,
         `🎯 Type: ${prefill.type || 'general'}`,
         `📥 Source: ${src}`,
+        `👥 Routed to: ${agentLabel}`,
         `🕒 ${new Date().toLocaleString('en-IN')}`,
       ].filter(Boolean).join('\n');
       const waUrl = `https://wa.me/${adminWA}?text=${encodeURIComponent(waLines)}`;
-      // Open a new tab; user (lead) taps Send to route to admin's WhatsApp
       window.open(waUrl, '_blank', 'noopener,noreferrer');
       onClose();
     } catch (err) {
@@ -2058,6 +2099,25 @@ function SettingsEditor({ settings, onSave }) {
         <Field label="X / Twitter URL" value={s.social?.twitter} onChange={v => setS({ ...s, social: { ...(s.social || {}), twitter: v } })} />
       </div>
 
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Sales Team (WhatsApp round-robin)</h4>
+      <p className="text-xs text-slate-500 -mt-2">Enquiries are routed to these agents in rotation. Only entries marked Active receive leads.</p>
+      <div className="space-y-2">
+        {(s.salesTeam || []).map((m, i) => (
+          <div key={i} className="grid grid-cols-12 gap-2 items-center border border-slate-200 rounded-lg p-3">
+            <Field label="Agent Name" value={m.name} onChange={v => setS({ ...s, salesTeam: s.salesTeam.map((x, idx) => idx === i ? { ...x, name: v } : x) })} />
+            <div className="col-span-3"><Field label="Role" value={m.role} onChange={v => setS({ ...s, salesTeam: s.salesTeam.map((x, idx) => idx === i ? { ...x, role: v } : x) })} /></div>
+            <div className="col-span-3"><Field label="WhatsApp (digits, no +)" value={m.whatsapp} onChange={v => setS({ ...s, salesTeam: s.salesTeam.map((x, idx) => idx === i ? { ...x, whatsapp: v } : x) })} /></div>
+            <label className="col-span-1 text-xs flex items-center gap-1 pt-4">
+              <input type="checkbox" checked={m.active !== false} onChange={e => setS({ ...s, salesTeam: s.salesTeam.map((x, idx) => idx === i ? { ...x, active: e.target.checked } : x) })} /> Active
+            </label>
+            <button onClick={() => setS({ ...s, salesTeam: s.salesTeam.filter((_, idx) => idx !== i) })} className="col-span-1 text-red-500 text-lg pt-4">×</button>
+          </div>
+        ))}
+        <button onClick={() => setS({ ...s, salesTeam: [...(s.salesTeam || []), { id: `s${Date.now()}`, name: '', role: '', whatsapp: '', active: true }] })} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Sales Agent
+        </button>
+      </div>
+
       <h4 className="font-serif text-xl text-gillco-green mt-6">Popup Form Config</h4>
       <div className="grid md:grid-cols-3 gap-4 items-end">
         <label className="flex items-center gap-2 text-sm">
@@ -2284,6 +2344,24 @@ function ProjectEditor({ project, onSave, onClose }) {
             </div>
           ))}
           <button onClick={addMilestone} className="px-3 py-1.5 border border-slate-300 rounded-full text-sm inline-flex gap-1 items-center"><Plus className="w-3 h-3" /> Add Milestone</button>
+        </div>
+
+        {/* Video playlist */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Video Playlist</h4>
+        <p className="text-xs text-slate-500 mb-3">Show multiple video angles inside the project detail modal (walkthrough, amenity, interior, drone, etc.)</p>
+        <div className="space-y-2">
+          {(p.videos || []).map((v, i) => (
+            <div key={i} className="grid grid-cols-12 gap-2 items-center border border-slate-200 rounded-lg p-3">
+              <div className="col-span-3"><Field label="Title" value={v.title} onChange={x => setP({ ...p, videos: p.videos.map((y, idx) => idx === i ? { ...y, title: x } : y) })} /></div>
+              <div className="col-span-2"><Field label="Angle" value={v.angle} onChange={x => setP({ ...p, videos: p.videos.map((y, idx) => idx === i ? { ...y, angle: x } : y) })} /></div>
+              <div className="col-span-3"><Field label="YouTube ID" value={v.youtubeId} onChange={x => setP({ ...p, videos: p.videos.map((y, idx) => idx === i ? { ...y, youtubeId: x } : y) })} /></div>
+              <div className="col-span-3"><Field label="Poster URL" value={v.poster} onChange={x => setP({ ...p, videos: p.videos.map((y, idx) => idx === i ? { ...y, poster: x } : y) })} /></div>
+              <button onClick={() => setP({ ...p, videos: p.videos.filter((_, idx) => idx !== i) })} className="col-span-1 text-red-500 text-lg pt-4">×</button>
+            </div>
+          ))}
+          <button onClick={() => setP({ ...p, videos: [...(p.videos || []), { id: `v${Date.now()}`, title: '', angle: '', youtubeId: '', poster: '' }] })} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Add Video
+          </button>
         </div>
 
         <div className="mt-6 flex gap-3">
