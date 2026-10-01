@@ -851,12 +851,26 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {news.slice(0, 3).map(n => (
-              <div key={n.id} className="bg-white/5 backdrop-blur rounded-xl p-6 border border-white/10 hover:bg-white/10 transition">
-                <div className="text-gillco-gold text-xs tracking-wider uppercase mb-2">
-                  {new Date(n.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} · {n.category}
+              <article key={n.id} className="group bg-white/5 backdrop-blur rounded-xl overflow-hidden border border-white/10 hover:bg-white/10 transition flex flex-col">
+                {n.image && (
+                  <div className="aspect-[16/9] overflow-hidden">
+                    <img
+                      loading="lazy"
+                      decoding="async"
+                      src={safeImg(n.image)}
+                      alt={n.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                    />
+                  </div>
+                )}
+                <div className="p-6 flex-1 flex flex-col">
+                  <div className="text-gillco-gold text-xs tracking-wider uppercase mb-2">
+                    {n.date ? new Date(n.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} {n.category ? '· ' + n.category : ''}
+                  </div>
+                  <p className="text-white/90 leading-relaxed font-serif text-lg">{n.title}</p>
+                  {n.body && <p className="text-white/60 text-sm mt-2 line-clamp-2">{n.body}</p>}
                 </div>
-                <p className="text-white/90 leading-relaxed">{n.title}</p>
-              </div>
+              </article>
             ))}
           </div>
         </div>
@@ -1610,27 +1624,50 @@ function TeamView({ team }) {
 function NewsView({ news }) {
   return (
     <section className="py-20 bg-white min-h-screen">
-      <div className="max-w-5xl mx-auto px-4">
+      <div className="max-w-6xl mx-auto px-4">
         <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase text-center">Corporate Spotlight</p>
-        <h1 className="font-serif text-5xl text-gillco-green text-center mt-3">News & Announcements</h1>
-        <div className="mt-12 space-y-4">
+        <h1 className="font-serif text-4xl md:text-5xl text-gillco-green text-center mt-3">News & Announcements</h1>
+        <p className="text-center text-slate-500 mt-3 max-w-xl mx-auto">The latest updates, milestones and achievements from Gillco Group.</p>
+
+        {news.length === 0 && (
+          <p className="text-center text-slate-400 mt-16">No announcements yet.</p>
+        )}
+
+        <div className="mt-12 grid md:grid-cols-2 gap-6">
           {news.map(n => (
-            <div key={n.id} className="p-6 bg-gillco-cream rounded-2xl border border-gillco-gold/20 hover:shadow-md transition">
-              <div className="flex items-start gap-4 flex-wrap">
-                <div className="w-24 shrink-0">
-                  <div className="text-gillco-gold text-xs uppercase tracking-widest font-semibold">
-                    {new Date(n.date).toLocaleDateString('en-IN', { month: 'short' })}
-                  </div>
-                  <div className="font-serif text-3xl text-gillco-green">
-                    {new Date(n.date).getFullYear()}
-                  </div>
+            <article key={n.id} className="group bg-gillco-cream rounded-2xl border border-gillco-gold/20 overflow-hidden hover:shadow-xl transition flex flex-col">
+              {n.image ? (
+                <div className="aspect-[16/9] overflow-hidden bg-stone-100">
+                  <img
+                    loading="lazy"
+                    decoding="async"
+                    src={safeImg(n.image)}
+                    alt={n.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                  />
                 </div>
-                <div className="flex-1 min-w-[200px]">
-                  <span className="text-xs bg-gillco-green text-white px-2 py-0.5 rounded-full">{n.category}</span>
-                  <p className="text-slate-800 font-medium leading-relaxed mt-2">{n.title}</p>
+              ) : null}
+
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-xs bg-gillco-green text-white px-2.5 py-1 rounded-full font-semibold">{n.category || 'Corporate'}</span>
+                  {n.date && (
+                    <span className="text-xs text-gillco-gold uppercase tracking-widest font-semibold">
+                      {new Date(n.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
                 </div>
+                <h2 className="font-serif text-xl md:text-2xl text-gillco-green mt-3 leading-snug">{n.title}</h2>
+                {n.body && (
+                  <p className="text-slate-700 mt-3 leading-relaxed text-sm md:text-base whitespace-pre-line">{n.body}</p>
+                )}
+                {n.link && (
+                  <a href={n.link} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-gillco-green font-semibold text-sm hover:text-gillco-gold">
+                    Read more <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
               </div>
-            </div>
+            </article>
           ))}
         </div>
       </div>
@@ -1971,16 +2008,26 @@ function NewsEditor({ news, setNews }) {
   };
   return (
     <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-serif text-2xl text-gillco-green">News & Announcements</h3>
-        <button onClick={() => setEditing({ date: new Date().toISOString().slice(0, 10), title: '', category: 'Corporate' })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add News</button>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-serif text-2xl text-gillco-green">News & Announcements</h3>
+          <p className="text-xs text-slate-500 mt-1">Corporate spotlight shown on the Spotlight page. Add an image, headline, short description and optional external link.</p>
+        </div>
+        <button onClick={() => setEditing({ date: new Date().toISOString().slice(0, 10), title: '', category: 'Corporate', image: '', body: '', link: '' })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add News</button>
       </div>
       <div className="space-y-2">
         {news.map(n => (
           <div key={n.id} className="border border-slate-100 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex-1">
-              <div className="text-xs text-gillco-gold">{new Date(n.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} · {n.category}</div>
-              <div className="text-sm text-slate-800">{n.title}</div>
+            <div className="flex items-center gap-3 flex-1 min-w-[220px]">
+              {n.image ? (
+                <img loading="lazy" decoding="async" src={safeImg(n.image)} alt="" className="w-16 h-12 rounded object-cover" />
+              ) : (
+                <div className="w-16 h-12 rounded bg-gillco-green/10 flex items-center justify-center text-gillco-green text-xs font-serif">G</div>
+              )}
+              <div className="flex-1">
+                <div className="text-xs text-gillco-gold">{n.date ? new Date(n.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} · {n.category}</div>
+                <div className="text-sm text-slate-800 font-medium">{n.title}</div>
+              </div>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setEditing(n)} className="px-3 py-1.5 bg-gillco-green text-white text-xs rounded-full inline-flex gap-1 items-center"><Edit3 className="w-3 h-3" /> Edit</button>
@@ -1990,20 +2037,39 @@ function NewsEditor({ news, setNews }) {
         ))}
       </div>
       {editing && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-white max-w-lg w-full rounded-2xl p-6">
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white max-w-xl w-full rounded-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-3">
-              <h4 className="font-serif text-xl text-gillco-green">{editing.id ? 'Edit' : 'New'} News</h4>
+              <h4 className="font-serif text-xl text-gillco-green">{editing.id ? 'Edit' : 'New'} Announcement</h4>
               <button onClick={() => setEditing(null)}><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-3">
-              <Field label="Date (YYYY-MM-DD)" value={editing.date} onChange={v => setEditing({ ...editing, date: v })} />
-              <Field label="Category" value={editing.category} onChange={v => setEditing({ ...editing, category: v })} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Date" value={editing.date} onChange={v => setEditing({ ...editing, date: v })} />
+                <div>
+                  <label className="text-xs text-slate-500 uppercase">Category</label>
+                  <select value={editing.category || 'Corporate'} onChange={e => setEditing({ ...editing, category: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg">
+                    <option>Corporate</option>
+                    <option>Launch</option>
+                    <option>Award</option>
+                    <option>Milestone</option>
+                    <option>Press</option>
+                    <option>Event</option>
+                    <option>Project Update</option>
+                  </select>
+                </div>
+              </div>
+              <MediaUploader label="Image (optional, recommended 1200×675)" value={editing.image} onChange={v => setEditing({ ...editing, image: v })} accept="image/*" hint="Shown on the Spotlight page card" />
               <div>
                 <label className="text-xs text-slate-500 uppercase">Headline</label>
-                <textarea rows={3} value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
+                <textarea rows={2} value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" placeholder="e.g. Meraqui launches priority booking at Sector 126, Mohali" />
               </div>
-              <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save</button>
+              <div>
+                <label className="text-xs text-slate-500 uppercase">Short Description (optional)</label>
+                <textarea rows={4} value={editing.body || ''} onChange={e => setEditing({ ...editing, body: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" placeholder="2–4 lines about the announcement" />
+              </div>
+              <Field label="External Link (optional)" value={editing.link || ''} onChange={v => setEditing({ ...editing, link: v })} />
+              <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save Announcement</button>
             </div>
           </div>
         </div>
