@@ -331,18 +331,16 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch] = useState('');
 
-  /* -------- load data -------- */
+  /* -------- load data (progressive, mobile-first) -------- */
+  // Critical: settings + projects (above-the-fold). Load first and show the page as soon as they're ready.
   useEffect(() => {
     (async () => {
       try {
-        const [s, p, n, t] = await Promise.all([
+        const [s, p] = await Promise.all([
           api('/settings'),
           api('/projects'),
-          api('/news'),
-          api('/team'),
         ]);
         setSettings(s);
-        // Sort projects: Meraqui first, then upcoming, then ongoing, then delivered
         const statusOrder = { upcoming: 1, ongoing: 2, delivered: 3 };
         const sorted = [...p].sort((a, b) => {
           if (a.slug === 'meraqui') return -1;
@@ -352,16 +350,29 @@ function App() {
           return (b.createdAt || '').localeCompare(a.createdAt || '');
         });
         setProjects(sorted);
-        setNews(n);
-        setTeam(t);
       } catch (e) {
-        console.error(e);
+        console.error('critical load fail', e);
         toast.error('Failed to load site content');
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // Below-the-fold: news + team load in background after first paint
+  useEffect(() => {
+    if (loading) return;
+    (async () => {
+      try {
+        const [n, t] = await Promise.all([
+          api('/news').catch(() => []),
+          api('/team').catch(() => []),
+        ]);
+        setNews(n || []);
+        setTeam(t || []);
+      } catch (e) { /* silent */ }
+    })();
+  }, [loading]);
 
   /* -------- popup enquiry (configurable) -------- */
   const popupRef = useRef(false);
@@ -419,11 +430,23 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gillco-cream">
-        <div className="text-center">
-          <img loading="lazy" decoding="async" src={settings?.logoDark || GILLCO_LOGO} alt="Gillco" className="h-16 mx-auto mb-4 animate-pulse" />
-          <p className="text-gillco-green font-medium">Loading Gillco Group…</p>
+      <div className="min-h-screen bg-gillco-cream">
+        {/* Fake header shell */}
+        <div className="h-16 bg-white border-b border-stone-200 flex items-center px-4">
+          <img decoding="async" src={GILLCO_LOGO} alt="Gillco" className="h-10" />
         </div>
+        {/* Shimmer hero */}
+        <div className="relative h-[70vh] bg-gradient-to-br from-emerald-900 via-emerald-800 to-emerald-900 overflow-hidden">
+          <div className="absolute inset-0 opacity-20 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.15)_50%,transparent_100%)] animate-pulse" />
+          <div className="relative max-w-7xl mx-auto px-4 h-full flex flex-col justify-center">
+            <div className="h-5 w-32 bg-white/10 rounded mb-6" />
+            <div className="h-12 md:h-20 w-3/4 bg-white/10 rounded mb-4" />
+            <div className="h-12 md:h-20 w-1/2 bg-white/10 rounded mb-8" />
+            <div className="h-6 w-80 bg-white/10 rounded mb-2" />
+            <div className="h-6 w-60 bg-white/10 rounded" />
+          </div>
+        </div>
+        <div className="text-center py-8 text-gillco-green/60 text-sm">Loading luxury homes…</div>
       </div>
     );
   }
@@ -1687,9 +1710,11 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
   const [editing, setEditing] = useState(null);
   const [enquiries, setEnquiries] = useState([]);
   const [team, setTeam] = useState([]);
+  const [posts, setPosts] = useState([]);
 
   useEffect(() => { if (authed && tab === 'enquiries') api('/enquiries').then(setEnquiries).catch(() => {}); }, [authed, tab]);
   useEffect(() => { if (authed) api('/team').then(setTeam).catch(() => {}); }, [authed]);
+  useEffect(() => { if (authed) api('/posts?all=1').then(setPosts).catch(() => {}); }, [authed]);
 
   const login = async (e) => {
     e.preventDefault();
@@ -1754,6 +1779,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     { id: 'hero', label: 'Hero Slides' },
     { id: 'videos', label: 'Videos' },
     { id: 'news', label: 'News' },
+    { id: 'posts', label: 'Blog / Social' },
     { id: 'team', label: 'Team' },
     { id: 'settings', label: 'Site & Brand' },
     { id: 'enquiries', label: 'Enquiries' },
@@ -1811,6 +1837,9 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
         )}
         {tab === 'news' && (
           <NewsEditor news={news} setNews={setNews} />
+        )}
+        {tab === 'posts' && (
+          <PostsEditor posts={posts} setPosts={setPosts} />
         )}
         {tab === 'team' && (
           <TeamEditor team={team} setTeam={setTeam} />
@@ -1975,6 +2004,136 @@ function NewsEditor({ news, setNews }) {
                 <textarea rows={3} value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
               </div>
               <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PostsEditor({ posts, setPosts }) {
+  const [editing, setEditing] = useState(null);
+  const save = async (p) => {
+    try {
+      if (p.id && posts.find(x => x.id === p.id)) {
+        const upd = await api(`/posts/${p.slug || p.id}`, { method: 'PUT', body: JSON.stringify(p) });
+        setPosts(prev => prev.map(x => x.id === upd.id ? upd : x));
+      } else {
+        const created = await api('/posts', { method: 'POST', body: JSON.stringify(p) });
+        setPosts(prev => [created, ...prev]);
+      }
+      setEditing(null);
+      toast.success('Post saved');
+    } catch (e) { toast.error(e.message || 'Save failed'); }
+  };
+  const del = async (slug) => {
+    if (!confirm('Delete this post permanently?')) return;
+    await api(`/posts/${slug}`, { method: 'DELETE' });
+    setPosts(prev => prev.filter(x => x.slug !== slug));
+    toast.success('Deleted');
+  };
+  const togglePublish = async (p) => {
+    const upd = await api(`/posts/${p.slug}`, { method: 'PUT', body: JSON.stringify({ ...p, published: !p.published }) });
+    setPosts(prev => prev.map(x => x.id === upd.id ? upd : x));
+    toast.success(upd.published ? 'Published' : 'Set to draft');
+  };
+  const copyShareLink = async (p) => {
+    const base = window.location.origin;
+    const url = `${base}/blog/${p.slug}`;
+    try { await navigator.clipboard.writeText(url); toast.success('Link copied: ' + url); }
+    catch { toast.info(url); }
+  };
+
+  const sources = [
+    { v: 'manual', label: 'Blog Post' },
+    { v: 'instagram', label: 'Instagram' },
+    { v: 'facebook', label: 'Facebook' },
+    { v: 'twitter', label: 'X / Twitter' },
+    { v: 'linkedin', label: 'LinkedIn' },
+    { v: 'youtube', label: 'YouTube' },
+  ];
+
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-serif text-2xl text-gillco-green">Blog & Social Posts</h3>
+          <p className="text-xs text-slate-500 mt-1">Create posts for the <a href="/blog" target="_blank" className="text-emerald-700 underline">/blog</a> section. Each post has a shareable public link with WhatsApp/FB/LinkedIn share buttons.</p>
+        </div>
+        <button onClick={() => setEditing({ title: '', excerpt: '', body: '', cover: '', tags: '', source: 'manual', published: true, publishedAt: new Date().toISOString().slice(0, 10) })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Post</button>
+      </div>
+
+      {posts.length === 0 && <p className="text-sm text-slate-500 py-4">No posts yet. Click "Add Post" to create your first update.</p>}
+
+      <div className="space-y-2">
+        {posts.map(p => (
+          <div key={p.id} className="border border-slate-100 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-[220px]">
+              {p.cover ? (
+                <img loading="lazy" decoding="async" src={safeImg(p.cover)} className="w-14 h-14 rounded object-cover" alt="" />
+              ) : (
+                <div className="w-14 h-14 rounded bg-gillco-green/10 flex items-center justify-center text-gillco-green text-xs font-serif">G</div>
+              )}
+              <div className="flex-1">
+                <div className="text-xs">
+                  <span className={`px-2 py-0.5 rounded-full font-semibold ${p.published === false ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {p.published === false ? 'Draft' : 'Published'}
+                  </span>
+                  <span className="ml-2 text-slate-500 capitalize">{p.source || 'manual'}</span>
+                  <span className="ml-2 text-slate-400">{p.publishedAt ? new Date(p.publishedAt).toLocaleDateString('en-IN') : ''}</span>
+                </div>
+                <div className="font-serif text-base text-gillco-green mt-0.5">{p.title}</div>
+                <div className="text-xs text-slate-500">/blog/{p.slug}</div>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => copyShareLink(p)} className="px-3 py-1.5 border border-emerald-300 text-emerald-700 text-xs rounded-full inline-flex gap-1 items-center" title="Copy public share link"><ExternalLink className="w-3 h-3" /> Share</button>
+              <button onClick={() => togglePublish(p)} className="px-3 py-1.5 border border-slate-300 text-slate-700 text-xs rounded-full">{p.published === false ? 'Publish' : 'Unpublish'}</button>
+              <button onClick={() => setEditing(p)} className="px-3 py-1.5 bg-gillco-green text-white text-xs rounded-full inline-flex gap-1 items-center"><Edit3 className="w-3 h-3" /> Edit</button>
+              <button onClick={() => del(p.slug)} className="px-3 py-1.5 border border-red-300 text-red-600 text-xs rounded-full"><Trash2 className="w-3 h-3" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {editing && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white max-w-2xl w-full rounded-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="font-serif text-xl text-gillco-green">{editing.id ? 'Edit' : 'New'} Post</h4>
+              <button onClick={() => setEditing(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3">
+              <Field label="Title" value={editing.title} onChange={v => setEditing({ ...editing, title: v })} />
+              <Field label="Slug (optional, auto from title)" value={editing.slug || ''} onChange={v => setEditing({ ...editing, slug: v })} />
+              <div>
+                <label className="text-xs text-slate-500 uppercase">Short Excerpt (shows in cards & previews)</label>
+                <textarea rows={2} value={editing.excerpt || ''} onChange={e => setEditing({ ...editing, excerpt: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" />
+              </div>
+              <MediaUploader label="Cover Image" value={editing.cover} onChange={v => setEditing({ ...editing, cover: v })} accept="image/*" hint="Shown in post card and OG preview. Ideal 1200x630." />
+              <div>
+                <label className="text-xs text-slate-500 uppercase">Body (supports **bold**, *italic*, [link](url), blank line = new paragraph)</label>
+                <textarea rows={10} value={editing.body || ''} onChange={e => setEditing({ ...editing, body: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg font-mono text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 uppercase">Source</label>
+                  <select value={editing.source || 'manual'} onChange={e => setEditing({ ...editing, source: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg">
+                    {sources.map(s => <option key={s.v} value={s.v}>{s.label}</option>)}
+                  </select>
+                </div>
+                <Field label="Publish Date" value={typeof editing.publishedAt === 'string' ? editing.publishedAt.slice(0, 10) : ''} onChange={v => setEditing({ ...editing, publishedAt: v })} />
+              </div>
+              <Field label="Tags (comma-separated)" value={Array.isArray(editing.tags) ? editing.tags.join(', ') : (editing.tags || '')} onChange={v => setEditing({ ...editing, tags: v })} />
+              {editing.source !== 'manual' && (
+                <Field label="Original Social Post URL (optional)" value={editing.sourceUrl || ''} onChange={v => setEditing({ ...editing, sourceUrl: v })} />
+              )}
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editing.published !== false} onChange={e => setEditing({ ...editing, published: e.target.checked })} />
+                Publish immediately (uncheck to save as draft)
+              </label>
+              <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save Post</button>
             </div>
           </div>
         </div>
@@ -2641,7 +2800,7 @@ function MediaUploader({ label, value, onChange, accept = 'image/*', hint = 'PNG
 function Footer({ settings, goTo }) {
   return (
     <footer className="bg-gillco-green-dark text-white pt-16 pb-8 no-print">
-      <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-10">
+      <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-5 gap-10">
         <div className="md:col-span-2">
           <img loading="lazy" decoding="async" src={settings?.logoWhite || GILLCO_LOGO_WHITE} alt="Gillco Group" className="h-14 mb-4" />
           <p className="text-white/70 leading-relaxed max-w-md">
@@ -2660,6 +2819,7 @@ function Footer({ settings, goTo }) {
             <li><button onClick={() => goTo('projects')} className="hover:text-gillco-gold">Projects</button></li>
             <li><button onClick={() => goTo('team')} className="hover:text-gillco-gold">Team</button></li>
             <li><button onClick={() => goTo('news')} className="hover:text-gillco-gold">Spotlight</button></li>
+            <li><a href="/blog" className="hover:text-gillco-gold">Blog</a></li>
             <li><button onClick={() => goTo('contact')} className="hover:text-gillco-gold">Contact</button></li>
           </ul>
         </div>
@@ -2672,10 +2832,36 @@ function Footer({ settings, goTo }) {
             <li><button onClick={() => goTo('admin')} className="hover:text-gillco-gold">Admin CMS</button></li>
           </ul>
         </div>
+        <div>
+          <h4 className="text-gillco-gold font-semibold uppercase text-sm tracking-widest mb-4">Legal</h4>
+          <ul className="space-y-2 text-white/80 text-sm">
+            <li><a href="/terms" className="hover:text-gillco-gold">Terms & Conditions</a></li>
+            <li><a href="/privacy" className="hover:text-gillco-gold">Privacy Policy</a></li>
+            <li><a href="/payment-policy" className="hover:text-gillco-gold">Payment Policy</a></li>
+            <li><a href="/cancellation-policy" className="hover:text-gillco-gold">Cancellation & Refund</a></li>
+            <li><a href="/disclaimer" className="hover:text-gillco-gold">Disclaimer</a></li>
+          </ul>
+        </div>
       </div>
-      <div className="max-w-7xl mx-auto px-4 mt-12 pt-6 border-t border-white/10 flex items-center justify-between flex-wrap gap-3 text-xs text-white/60">
-        <p>© {new Date().getFullYear()} Gillco Group. All rights reserved.</p>
-        <p>Established 2001 · Punjab, India</p>
+
+      {/* Channel Partner Attribution */}
+      <div className="max-w-7xl mx-auto px-4 mt-12 pt-6 border-t border-white/10">
+        <div className="bg-white/5 rounded-lg p-4 md:p-5 text-xs md:text-sm text-white/70 leading-relaxed">
+          <p>
+            <span className="font-semibold text-gillco-gold">This website is designed, published and managed by</span>{' '}
+            <span className="font-bold text-white">QUALITY REAL ESTATE</span>, an authorised channel partner with{' '}
+            <span className="font-bold text-white">GILLCO GROUP / GILLCO DEVELOPERS AND BUILDERS PVT. LTD.</span>, for marketing, branding and promotional purposes.
+          </p>
+          <p className="mt-2 text-white/50">
+            All information, visuals, prices and timelines on this website are indicative and subject to change at the sole discretion of Gillco Group.
+            Nothing on this website constitutes a legal offer. Please verify project details on <a href="https://rera.punjab.gov.in" target="_blank" rel="noopener noreferrer" className="underline hover:text-gillco-gold">rera.punjab.gov.in</a> before any booking decision.
+          </p>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 mt-6 flex items-center justify-between flex-wrap gap-3 text-xs text-white/50">
+        <p>© {new Date().getFullYear()} Gillco Developers and Builders Pvt. Ltd. All rights reserved.</p>
+        <p>Established 2001 · Mohali, Punjab, India</p>
       </div>
     </footer>
   );

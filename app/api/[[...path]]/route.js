@@ -624,6 +624,74 @@ async function handleRoute(request, { params }) {
       return cors(NextResponse.json({ ok: true }));
     }
 
+    // ---------- POSTS (Blog / Social) ----------
+    // Public list (only published)
+    if (route === '/posts' && method === 'GET') {
+      const url = new URL(request.url);
+      const includeDrafts = url.searchParams.get('all') === '1';
+      const query = includeDrafts ? {} : { published: { $ne: false } };
+      const items = await db.collection('posts').find(query).sort({ publishedAt: -1, createdAt: -1 }).toArray();
+      return cors(NextResponse.json(items.map(strip)));
+    }
+    // Public single by slug
+    if (route.startsWith('/posts/') && method === 'GET') {
+      const slug = route.split('/')[2];
+      const item = await db.collection('posts').findOne({ slug });
+      if (!item) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      return cors(NextResponse.json(strip(item)));
+    }
+    if (route === '/posts' && method === 'POST') {
+      const body = await request.json();
+      const slug = (body.slug || body.title || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 80) || uuidv4().slice(0, 8);
+      // Ensure slug uniqueness
+      const existing = await db.collection('posts').findOne({ slug });
+      const finalSlug = existing ? `${slug}-${uuidv4().slice(0, 6)}` : slug;
+      const now = new Date().toISOString();
+      const doc = {
+        id: uuidv4(),
+        slug: finalSlug,
+        title: body.title || 'Untitled',
+        excerpt: body.excerpt || '',
+        cover: body.cover || '',
+        body: body.body || '',
+        tags: Array.isArray(body.tags) ? body.tags : (body.tags ? String(body.tags).split(',').map(t => t.trim()).filter(Boolean) : []),
+        author: body.author || 'Gillco Group',
+        source: body.source || 'manual', // manual | instagram | facebook
+        sourceUrl: body.sourceUrl || '',
+        published: body.published !== false,
+        publishedAt: body.publishedAt || now,
+        createdAt: now,
+      };
+      await db.collection('posts').insertOne(doc);
+      await recordHistory(db, { entity: 'posts', entityId: doc.id, action: 'create', after: strip(doc), label: `Added post: ${doc.title.slice(0, 40)}` });
+      return cors(NextResponse.json(strip(doc)));
+    }
+    if (route.startsWith('/posts/') && method === 'PUT') {
+      const slugOrId = route.split('/')[2];
+      const body = await request.json();
+      delete body._id;
+      const before = await db.collection('posts').findOne({ $or: [{ slug: slugOrId }, { id: slugOrId }] });
+      if (!before) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      await db.collection('posts').updateOne({ id: before.id }, { $set: { ...body, updatedAt: new Date().toISOString() } });
+      const doc = await db.collection('posts').findOne({ id: before.id });
+      await recordHistory(db, { entity: 'posts', entityId: before.id, action: 'update', before: strip(before), after: strip(doc), label: `Updated post: ${doc.title?.slice(0, 40)}` });
+      return cors(NextResponse.json(strip(doc)));
+    }
+    if (route.startsWith('/posts/') && method === 'DELETE') {
+      const slugOrId = route.split('/')[2];
+      const before = await db.collection('posts').findOne({ $or: [{ slug: slugOrId }, { id: slugOrId }] });
+      if (!before) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      await db.collection('posts').deleteOne({ id: before.id });
+      await recordHistory(db, { entity: 'posts', entityId: before.id, action: 'delete', before: strip(before), label: `Deleted post: ${before.title?.slice(0, 40)}` });
+      return cors(NextResponse.json({ ok: true }));
+    }
+
     // ---------- ADMIN AUTH (simple passcode) ----------
     if (route === '/admin/login' && method === 'POST') {
       const body = await request.json();
