@@ -153,7 +153,21 @@
           agent: "testing"
           comment: "✅ COMPREHENSIVE CRUD TESTING COMPLETE - ALL 17 TESTS PASSED. NEW ENDPOINTS VERIFIED: (1) POST /api/projects creates project with UUID + createdAt, (2) GET /api/projects returns all projects including newly created, (3) GET /api/projects/:id retrieves by ID, (4) PUT /api/projects/:id updates with persistence verified, (5) DELETE /api/projects/:id deletes and returns 404 on subsequent GET. (6) POST /api/team creates member with UUID, (7) GET /api/team returns all members, (8) PUT /api/team/:id updates role with persistence, (9) DELETE /api/team/:id removes from list. (10) POST /api/news creates with UUID, (11) PUT /api/news/:id updates title, (12) GET /api/news returns sorted by date desc, (13) DELETE /api/news/:id removes from list. REGRESSION TESTS: (14) GET /api/settings returns brandName 'Gillco Group' + 10 hero slides, (15) PUT /api/settings updates successfully, (16) POST /api/enquiries creates enquiry, (17) POST /api/admin/login works with password 'gillco2025'. All responses exclude MongoDB _id fields. All CRUD operations persist correctly. No blocking issues found."
 
-## frontend:
+  - task: "Header 'Soft Launch' nav item removed (user bug fix)"
+    implemented: true
+    working: true
+    file: "app/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "User reported: 'dont show soft launch on header'. Fixed by removing the { id: 'upcoming', label: 'Soft Launch' } item from the nav array inside the Header component (lines 569-579). Other 'Soft Launch' references remain by design (footer Projects column, Admin status dropdown, project detail CTAs, and the Upcoming/Soft Launch page accessible via /projects filter). Header now shows exactly 9 items: Home, Legacy, Projects, Delivered, Ongoing, Team, Spotlight, Contact, Admin."
+        - working: true
+          agent: "testing"
+          comment: "✅ BUG FIX VERIFIED - ALL REQUIREMENTS PASS. Desktop header (1440×900): 9 nav items in correct order, NO 'Soft Launch' ✅. Mobile header (390×844): 9 nav items matching desktop, NO 'Soft Launch', drawer closes correctly ✅. Footer sanity: 'Soft Launch' present in footer Projects column (intentional) ✅, Legal column has 5 links ✅, Blog link present ✅, Quality Real Estate attribution present ✅. Console: 0 errors, 0 warnings ✅. Navigation functionality working. Bug fix is production-ready."
+
   - task: "Frontend guard for empty img src (safeImg helper) — Bug fix from user"
     implemented: true
     working: true
@@ -218,15 +232,20 @@
 ## metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: true
 
 ## test_plan:
-  current_focus:
-    - "Full site UI — Gillco Group Phase 2 (real data, admin CMS, PDF compare export, generated brochure)"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+## agent_communication:
+    - agent: "main"
+      message: "User reported: 'dont show soft launch on header'. Fixed by removing the { id: 'upcoming', label: 'Soft Launch' } item from the `nav` array inside the Header component in app/page.js (around line 575). Other 'Soft Launch' references remain by design (footer Projects column, inside the Admin status dropdown, Book Soft Launch CTA on project detail, and the Upcoming/Soft Launch page itself which is still reachable via /projects filter and footer). Please verify the FRONTEND HEADER NAVIGATION BAR (desktop + mobile hamburger menu) no longer shows a 'Soft Launch' link, while the rest of the header items are intact: Home, Legacy, Projects, Delivered, Ongoing, Team, Spotlight, Contact, Admin. Also verify navigation still works for the remaining items. No backend changes made."
+    - agent: "testing"
+      message: "✅ BUG FIX VERIFIED - ALL REQUIREMENTS PASS. **Desktop Header (1440×900)**: Navigation bar contains exactly 9 items in correct order: Home, Legacy, Projects, Delivered, Ongoing, Team, Spotlight, Contact, Admin ✅. NO 'Soft Launch' item found in navigation ✅. **Mobile Header (390×844)**: Hamburger menu contains exactly 9 items matching desktop navigation ✅. NO 'Soft Launch' item found in mobile navigation ✅. Mobile drawer closes correctly after navigation ✅. **Footer Sanity Check**: Footer 'Projects' column DOES contain 'Soft Launch' link (as expected - intentional) ✅. Footer 'Legal' column has all 5 links (Terms, Privacy, Payment, Cancellation, Disclaimer) ✅. 'Blog' link found under 'Explore' ✅. Quality Real Estate attribution present ✅. **Console Check**: 0 errors, 0 warnings (only React DevTools info messages) ✅. Minor: Auto-popup enquiry modal intercepted navigation test clicks after 6-7s, but this is expected behavior and not related to the header fix. The bug fix is production-ready."
 
 ## agent_communication:
     - agent: "testing"
