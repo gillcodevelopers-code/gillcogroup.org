@@ -761,7 +761,7 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
                 <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Signature Development</p>
                 <div className="flex items-center gap-3 mt-3">
                   {featured.logo && (
-                    <img loading="lazy" decoding="async" src={safeImg(featured.logo)} alt={`${featured.name} logo`} className="h-12 md:h-16 object-contain bg-white rounded-lg border border-slate-100 p-1.5" />
+                    <img loading="lazy" decoding="async" src={safeImg(featured.logo)} alt={`${featured.name} logo`} className="h-12 md:h-16 object-contain bg-white rounded-lg border border-slate-100 p-1.5 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_28px_rgba(217,169,67,0.45)] hover:ring-2 hover:ring-gillco-gold/60 cursor-default" />
                   )}
                   <h2 className="font-serif text-4xl md:text-5xl text-gillco-green">{featured.name}</h2>
                 </div>
@@ -958,10 +958,10 @@ function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
       <div className="p-6">
         <div className="flex items-start gap-3">
           {project.logo && (
-            <img loading="lazy" decoding="async" src={safeImg(project.logo)} alt={`${project.name} logo`} className="w-12 h-12 object-contain shrink-0 bg-white rounded-md border border-slate-100 p-1" />
+            <img loading="lazy" decoding="async" src={safeImg(project.logo)} alt={`${project.name} logo`} className="w-12 h-12 object-contain shrink-0 bg-white rounded-md border border-slate-100 p-1 transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-hover:ring-2 group-hover:ring-gillco-gold/40" />
           )}
           <div className="flex-1 min-w-0">
-            <h3 className="font-serif text-2xl text-gillco-green leading-tight">{project.name}</h3>
+            <h3 className="font-serif text-2xl text-gillco-green leading-tight transition-colors duration-300 group-hover:text-gillco-green-dark">{project.name}</h3>
             <p className="text-sm text-slate-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {project.location}</p>
           </div>
         </div>
@@ -1092,7 +1092,7 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
             <div className="flex items-start justify-between flex-wrap gap-4">
               <div className="flex items-start gap-4">
                 {project.logo && (
-                  <img loading="lazy" decoding="async" src={safeImg(project.logo)} alt={`${project.name} logo`} className="w-16 h-16 md:w-20 md:h-20 object-contain bg-white rounded-lg border border-slate-100 p-1.5 shrink-0" />
+                  <img loading="lazy" decoding="async" src={safeImg(project.logo)} alt={`${project.name} logo`} className="w-16 h-16 md:w-20 md:h-20 object-contain bg-white rounded-lg border border-slate-100 p-1.5 shrink-0 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(217,169,67,0.35)] hover:ring-2 hover:ring-gillco-gold/50 cursor-default" />
                 )}
                 <div>
                   <h2 className="font-serif text-4xl text-gillco-green">{project.name}</h2>
@@ -1324,9 +1324,31 @@ function CompareModal({ projects, onClose, onRemove }) {
                     <th className="text-left p-3 bg-gillco-cream text-gillco-green text-sm font-semibold w-40">Attribute</th>
                     {projects.map(p => (
                       <th key={p.id} className="p-3 bg-gillco-cream text-left align-top min-w-[200px]">
-                        <img loading="lazy" decoding="async" src={safeImg(p.heroImage)} alt={p.name} className="w-full h-32 object-cover rounded-lg mb-2" />
-                        <div className="font-serif text-lg text-gillco-green">{p.name}</div>
-                        <div className="text-xs text-slate-500">{p.location}</div>
+                        <div className="relative mb-2">
+                          <img loading="lazy" decoding="async" src={safeImg(p.heroImage)} alt={p.name} className="w-full h-32 object-cover rounded-lg" />
+                          {p.logo && (
+                            <img
+                              loading="lazy"
+                              decoding="async"
+                              src={safeImg(p.logo)}
+                              alt={`${p.name} logo`}
+                              className="absolute -bottom-3 left-2 w-10 h-10 object-contain bg-white rounded-md border border-slate-200 p-1 shadow-sm"
+                            />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                          {p.logo && (
+                            <img
+                              loading="lazy"
+                              decoding="async"
+                              src={safeImg(p.logo)}
+                              alt=""
+                              className="w-6 h-6 object-contain rounded border border-slate-100 bg-white p-0.5 shrink-0 md:hidden"
+                            />
+                          )}
+                          <div className="font-serif text-lg text-gillco-green leading-tight">{p.name}</div>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">{p.location}</div>
                         <button onClick={() => onRemove(p.id)} className="mt-2 text-xs text-red-600 inline-flex items-center gap-1 no-print"><Trash2 className="w-3 h-3" /> Remove</button>
                       </th>
                     ))}
@@ -2205,6 +2227,38 @@ Use blank lines for paragraphs.
 
 function PostsEditor({ posts, setPosts }) {
   const [editing, setEditing] = useState(null);
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+
+  const doImport = async () => {
+    const url = importUrl.trim();
+    if (!url) return toast.error('Paste a URL first');
+    setImporting(true);
+    try {
+      const data = await api('/posts/import-url', { method: 'POST', body: JSON.stringify({ url }) });
+      // Open the editor prefilled
+      setEditing({
+        title: data.title || '',
+        excerpt: data.excerpt || '',
+        body: data.body || '',
+        cover: data.cover || '',
+        source: data.source || 'manual',
+        sourceUrl: data.sourceUrl || url,
+        tags: data.source && data.source !== 'manual' ? [data.source] : [],
+        published: true,
+        publishedAt: new Date().toISOString().slice(0, 10),
+      });
+      setShowImport(false);
+      setImportUrl('');
+      toast.success('Preview loaded — review and save');
+    } catch (e) {
+      toast.error(e.message || 'Could not import. The page may be private or block scraping. Add manually.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const save = async (p) => {
     try {
       if (p.id && posts.find(x => x.id === p.id)) {
@@ -2252,8 +2306,40 @@ function PostsEditor({ posts, setPosts }) {
           <h3 className="font-serif text-2xl text-gillco-green">Blog & Social Posts</h3>
           <p className="text-xs text-slate-500 mt-1">Create posts for the <a href="/blog" target="_blank" className="text-emerald-700 underline">/blog</a> section. Each post has a shareable public link with WhatsApp/FB/LinkedIn share buttons.</p>
         </div>
-        <button onClick={() => setEditing({ title: '', excerpt: '', body: '', cover: '', tags: '', source: 'manual', published: true, publishedAt: new Date().toISOString().slice(0, 10) })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Post</button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setShowImport(true)} className="px-4 py-2 border border-emerald-300 text-emerald-700 rounded-full text-sm font-semibold inline-flex items-center gap-2 hover:bg-emerald-50"><ExternalLink className="w-4 h-4" /> Import from URL</button>
+          <button onClick={() => setEditing({ title: '', excerpt: '', body: '', cover: '', tags: '', source: 'manual', published: true, publishedAt: new Date().toISOString().slice(0, 10) })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Post</button>
+        </div>
       </div>
+
+      {showImport && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-serif text-xl text-gillco-green">Import from URL</h4>
+              <button onClick={() => { setShowImport(false); setImportUrl(''); }}><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-sm text-slate-500 mb-3">Paste any public URL — Instagram, Facebook, YouTube, news article, etc. We'll auto-fetch the thumbnail, title and caption from the page's Open Graph tags.</p>
+            <input
+              type="url"
+              value={importUrl}
+              onChange={e => setImportUrl(e.target.value)}
+              placeholder="https://www.instagram.com/p/..."
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg mb-3"
+              autoFocus
+            />
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 mb-3">
+              <strong>Tip:</strong> Instagram now requires login for most posts — if the import fails, screenshot the reel, add it manually with "Add Post", and paste the Instagram URL in the "Original Social Post URL" field so viewers can click through.
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setShowImport(false); setImportUrl(''); }} className="flex-1 py-2.5 border border-slate-200 rounded-full text-sm">Cancel</button>
+              <button onClick={doImport} disabled={importing} className="flex-1 py-2.5 gradient-emerald text-white rounded-full font-semibold text-sm disabled:opacity-60">
+                {importing ? 'Fetching…' : 'Fetch Preview'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {posts.length === 0 && <p className="text-sm text-slate-500 py-4">No posts yet. Click "Add Post" to create your first update.</p>}
 

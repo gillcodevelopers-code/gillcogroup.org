@@ -692,6 +692,94 @@ async function handleRoute(request, { params }) {
       return cors(NextResponse.json({ ok: true }));
     }
 
+    // ---------- POSTS: Import from URL (Instagram/Facebook/YouTube/any article) ----------
+    // Fetches a public URL, parses Open Graph + oEmbed hints, returns a prefilled post payload.
+    // No API keys needed — relies on public <meta og:*> and <meta twitter:*> tags.
+    if (route === '/posts/import-url' && method === 'POST') {
+      const body = await request.json();
+      const target = String(body.url || '').trim();
+      if (!/^https?:\/\//i.test(target)) {
+        return cors(NextResponse.json({ error: 'Invalid URL. Must start with http(s)://' }, { status: 400 }));
+      }
+
+      // Detect source
+      const host = (() => { try { return new URL(target).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+      let source = 'manual';
+      if (host.includes('instagram.com')) source = 'instagram';
+      else if (host.includes('facebook.com') || host.includes('fb.watch')) source = 'facebook';
+      else if (host.includes('twitter.com') || host.includes('x.com')) source = 'twitter';
+      else if (host.includes('linkedin.com')) source = 'linkedin';
+      else if (host.includes('youtube.com') || host.includes('youtu.be')) source = 'youtube';
+
+      // Try YouTube oEmbed first for YouTube URLs (reliable, no auth)
+      if (source === 'youtube') {
+        try {
+          const r = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(target)}&format=json`);
+          if (r.ok) {
+            const o = await r.json();
+            return cors(NextResponse.json({
+              title: o.title || 'YouTube video',
+              excerpt: `A video by ${o.author_name || 'YouTube'}`,
+              cover: o.thumbnail_url || '',
+              sourceUrl: target,
+              source: 'youtube',
+              body: `*Watch on YouTube:* [${o.title || target}](${target})\n\n${o.html ? '' : ''}`,
+            }));
+          }
+        } catch {}
+      }
+
+      // Generic OG scraper
+      try {
+        const r = await fetch(target, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; GillcoBot/1.0; +https://gillcogroup.org/)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+          redirect: 'follow',
+        });
+        if (!r.ok) {
+          return cors(NextResponse.json({ error: `URL returned ${r.status}. The page may be private or require login (common for Instagram).` }, { status: 400 }));
+        }
+        const html = await r.text();
+
+        // Minimal meta tag parser
+        const get = (prop) => {
+          const re = new RegExp(`<meta[^>]*(?:property|name)=["']${prop}["'][^>]*content=["']([^"']+)["']`, 'i');
+          const m = html.match(re);
+          if (m) return m[1].trim();
+          const re2 = new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["']${prop}["']`, 'i');
+          const m2 = html.match(re2);
+          return m2 ? m2[1].trim() : '';
+        };
+
+        const title = get('og:title') || get('twitter:title') || (html.match(/<title>([^<]+)<\/title>/i)?.[1] || '').trim();
+        const description = get('og:description') || get('twitter:description') || get('description');
+        const image = get('og:image') || get('twitter:image') || get('og:image:secure_url');
+
+        const cleanTitle = title.replace(/\s*·\s*Instagram.*$/i, '').replace(/\s*\|.*Facebook.*$/i, '').trim();
+        const cleanExcerpt = description.replace(/\s+/g, ' ').trim().slice(0, 220);
+
+        if (!cleanTitle && !image && !cleanExcerpt) {
+          return cors(NextResponse.json({
+            error: 'Could not extract preview from this URL. The page may be private, require login (Instagram now requires login for most content), or block automated fetches. Please add the post manually.',
+          }, { status: 422 }));
+        }
+
+        return cors(NextResponse.json({
+          title: cleanTitle || `Post from ${host}`,
+          excerpt: cleanExcerpt,
+          cover: image || '',
+          sourceUrl: target,
+          source,
+          body: cleanExcerpt ? `${cleanExcerpt}\n\n**[View original on ${host}](${target})**` : `**[View original on ${host}](${target})**`,
+        }));
+      } catch (e) {
+        return cors(NextResponse.json({ error: `Fetch failed: ${e.message || e}` }, { status: 500 }));
+      }
+    }
+
     // ---------- ADMIN AUTH (simple passcode) ----------
     if (route === '/admin/login' && method === 'POST') {
       const body = await request.json();
