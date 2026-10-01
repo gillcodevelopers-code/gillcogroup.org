@@ -691,24 +691,60 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
                   <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-gillco-green/60 to-transparent" />
                   <span className={`absolute top-4 left-4 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>
                   <div className="absolute bottom-3 left-4 right-4 text-white">
-                    <div className="flex items-end gap-3">
+                    <div className="flex items-end gap-2.5">
                       {p.logo && (
                         <img
                           loading="lazy"
                           decoding="async"
                           src={safeImg(p.logo)}
                           alt={`${p.name} logo`}
-                          className="w-16 h-16 md:w-20 md:h-20 object-contain bg-white rounded-xl border border-white/30 p-2 shadow-lg shrink-0 transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_0_28px_rgba(217,169,67,0.55)] group-hover:ring-2 group-hover:ring-gillco-gold/70"
+                          className="w-11 h-11 md:w-12 md:h-12 object-contain bg-white rounded-lg border border-white/30 p-1 shadow-md shrink-0 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_0_18px_rgba(217,169,67,0.5)] group-hover:ring-2 group-hover:ring-gillco-gold/60"
                         />
                       )}
-                      <div className="min-w-0 flex-1 pb-1">
-                        <h3 className="font-serif text-2xl md:text-3xl leading-tight drop-shadow">{p.name}</h3>
-                        <p className="text-xs text-white/90 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {p.location}</p>
+                      <div className="min-w-0 flex-1 pb-0.5">
+                        <h3 className="font-serif text-xl md:text-2xl leading-tight drop-shadow">{p.name}</h3>
+                        <p className="text-[11px] text-white/90 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {p.location}</p>
                       </div>
                     </div>
                   </div>
                   <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gillco-gold/95 backdrop-blur flex items-center justify-center text-slate-900 shadow-lg">
                     <ShieldCheck className="w-5 h-5" />
+                  </div>
+
+                  {/* Hover info strip — slides up with key stats */}
+                  <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out bg-gradient-to-t from-black/90 via-black/80 to-black/60 backdrop-blur-sm text-white px-4 py-3 border-t border-gillco-gold/30">
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      {p.acres !== undefined && p.acres !== null && (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Acres</div>
+                          <div className="text-sm font-bold">{p.acres}</div>
+                        </div>
+                      )}
+                      {p.towers !== undefined && p.towers !== null && (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Towers</div>
+                          <div className="text-sm font-bold">{p.towers}</div>
+                        </div>
+                      )}
+                      {p.totalUnits !== undefined && p.totalUnits !== null && (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Units</div>
+                          <div className="text-sm font-bold">{p.totalUnits}</div>
+                        </div>
+                      )}
+                      {p.constructionProgress !== undefined && p.constructionProgress !== null && !p.towers && (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Progress</div>
+                          <div className="text-sm font-bold">{p.constructionProgress}%</div>
+                        </div>
+                      )}
+                      {p.handover && !p.totalUnits && (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Handover</div>
+                          <div className="text-sm font-bold">{p.handover}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {/* RERA panel */}
@@ -738,20 +774,20 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      {/* Stats — compact */}
+      <section className="py-10 md:py-12 bg-white">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             {[
               { icon: Award, val: `${settings?.stats?.years}+`, label: 'Years of Excellence' },
               { icon: Building2, val: `${settings?.stats?.projects}+`, label: 'Projects Delivered' },
               { icon: Users, val: `${settings?.stats?.families?.toLocaleString('en-IN')}+`, label: 'Happy Families' },
               { icon: LandPlot, val: settings?.stats?.sqft, label: 'Sq. Ft. Developed' },
             ].map((s, i) => (
-              <div key={i} className="text-center p-6 rounded-2xl bg-gillco-cream border border-gillco-gold/20 hover:shadow-md transition">
-                <s.icon className="w-8 h-8 text-gillco-gold mx-auto mb-3" />
-                <div className="font-serif text-4xl md:text-5xl text-gillco-green font-semibold">{s.val}</div>
-                <div className="text-xs md:text-sm text-slate-600 mt-2 uppercase tracking-wider">{s.label}</div>
+              <div key={i} className="text-center p-3 md:p-4 rounded-xl bg-gillco-cream border border-gillco-gold/20 hover:shadow-md transition">
+                <s.icon className="w-5 h-5 md:w-6 md:h-6 text-gillco-gold mx-auto mb-1.5" />
+                <div className="font-serif text-2xl md:text-3xl text-gillco-green font-semibold leading-none">{s.val}</div>
+                <div className="text-[10px] md:text-xs text-slate-600 mt-1.5 uppercase tracking-wider">{s.label}</div>
               </div>
             ))}
           </div>
