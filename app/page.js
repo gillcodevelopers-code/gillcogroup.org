@@ -691,8 +691,21 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
                   <div className="absolute inset-0 bg-gradient-to-t from-gillco-green-dark via-gillco-green/60 to-transparent" />
                   <span className={`absolute top-4 left-4 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>
                   <div className="absolute bottom-3 left-4 right-4 text-white">
-                    <h3 className="font-serif text-2xl leading-tight">{p.name}</h3>
-                    <p className="text-xs text-white/80 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {p.location}</p>
+                    <div className="flex items-end gap-3">
+                      {p.logo && (
+                        <img
+                          loading="lazy"
+                          decoding="async"
+                          src={safeImg(p.logo)}
+                          alt={`${p.name} logo`}
+                          className="w-16 h-16 md:w-20 md:h-20 object-contain bg-white rounded-xl border border-white/30 p-2 shadow-lg shrink-0 transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_0_28px_rgba(217,169,67,0.55)] group-hover:ring-2 group-hover:ring-gillco-gold/70"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1 pb-1">
+                        <h3 className="font-serif text-2xl md:text-3xl leading-tight drop-shadow">{p.name}</h3>
+                        <p className="text-xs text-white/90 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" /> {p.location}</p>
+                      </div>
+                    </div>
                   </div>
                   <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gillco-gold/95 backdrop-blur flex items-center justify-center text-slate-900 shadow-lg">
                     <ShieldCheck className="w-5 h-5" />
