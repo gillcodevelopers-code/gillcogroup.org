@@ -624,6 +624,49 @@ async function handleRoute(request, { params }) {
       return cors(NextResponse.json({ ok: true }));
     }
 
+    // ---------- TESTIMONIALS ----------
+    if (route === '/testimonials' && method === 'GET') {
+      const items = await db.collection('testimonials').find({ published: { $ne: false } }).sort({ order: 1, createdAt: -1 }).toArray();
+      return cors(NextResponse.json(items.map(strip)));
+    }
+    if (route === '/testimonials' && method === 'POST') {
+      const body = await request.json();
+      const doc = {
+        id: uuidv4(),
+        name: body.name || 'Anonymous',
+        role: body.role || '',
+        photo: body.photo || '',
+        projectId: body.projectId || '',
+        projectName: body.projectName || '',
+        quote: body.quote || '',
+        rating: Number(body.rating) || 5,
+        order: Number(body.order) || 0,
+        published: body.published !== false,
+        createdAt: new Date().toISOString(),
+      };
+      await db.collection('testimonials').insertOne(doc);
+      await recordHistory(db, { entity: 'testimonials', entityId: doc.id, action: 'create', after: strip(doc), label: `Added testimonial: ${doc.name}` });
+      return cors(NextResponse.json(strip(doc)));
+    }
+    if (route.startsWith('/testimonials/') && method === 'PUT') {
+      const id = route.split('/')[2];
+      const body = await request.json(); delete body._id;
+      const before = await db.collection('testimonials').findOne({ id });
+      if (!before) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      await db.collection('testimonials').updateOne({ id }, { $set: { ...body, updatedAt: new Date().toISOString() } });
+      const doc = await db.collection('testimonials').findOne({ id });
+      await recordHistory(db, { entity: 'testimonials', entityId: id, action: 'update', before: strip(before), after: strip(doc), label: `Updated testimonial: ${doc.name}` });
+      return cors(NextResponse.json(strip(doc)));
+    }
+    if (route.startsWith('/testimonials/') && method === 'DELETE') {
+      const id = route.split('/')[2];
+      const before = await db.collection('testimonials').findOne({ id });
+      if (!before) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      await db.collection('testimonials').deleteOne({ id });
+      await recordHistory(db, { entity: 'testimonials', entityId: id, action: 'delete', before: strip(before), label: `Deleted testimonial: ${before.name}` });
+      return cors(NextResponse.json({ ok: true }));
+    }
+
     // ---------- POSTS (Blog / Social) ----------
     // Public list (only published)
     if (route === '/posts' && method === 'GET') {

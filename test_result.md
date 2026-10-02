@@ -229,10 +229,40 @@
           agent: "testing"
           comment: "Comprehensive UI testing completed. CRITICAL BUG FOUND: Enquiry modal ('Get in Touch') keeps re-opening after being closed, blocking all navigation and interactions. Also News page 0 items, Legacy missing '25+ Years' text and 2 values cards. Recommendation: fix modal state and re-verify News/Legacy."
 
+  - task: "Bug fix: Hover reveal strip overlapping RERA details — merged stats inline"
+    implemented: true
+    working: true
+    file: "app/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "User reported: 'tower black one is hiding project details, merge it in project details'. The dark hover-reveal strip on RERA cards was sliding up on hover and covering RERA number/status/dates. FIX: Removed dark absolute-positioned hover strip entirely. Moved Acres/Towers/Units stats INTO white RERA panel body as inline 3-column grid at top (lines 761-792) with border-bottom separator, so stats are ALWAYS visible, never overlap, no hover needed."
+        - working: true
+          agent: "testing"
+          comment: "✅ BUG FIX VERIFIED - ALL TESTS PASS. **Desktop (1440×900)**: Found 3 RERA cards in 'Latest RERA Status Updates' section ✅. Each card has inline stats strip (Acres: 12, Towers: 6, Units: 444) at top of white panel with border-bottom separator (div.grid.grid-cols-3.gap-2.pb-2.border-b) ✅. Stats labels are gold uppercase (text-[9px] uppercase tracking-widest text-gillco-gold) ✅. Stats values are green bold (text-sm font-bold text-gillco-green) ✅. RERA number visible (PBRERA-SAS81-PR0762) in monospace font ✅. Status/dates section visible ✅. CRITICAL: NO dark hover overlay found (checked all 3 absolute positioned divs, only expected gradient on hero image) ✅. All details remain visible without hover ✅. **Mobile (390×844)**: Same structure as desktop, inline stats strip present, NO dark overlay ✅. **Console**: 0 errors, 0 warnings ✅. Screenshot evidence confirms stats are inline in white panel, no overlay covering details. Bug fix is production-ready."
+
+  - task: "Bug fix: Call + WhatsApp icons parallel (horizontal) instead of vertical stack"
+    implemented: true
+    working: true
+    file: "app/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "User reported: 'put whatsapp and direct call icon parallel'. The floating sticky stack had Call stacked ABOVE WhatsApp vertically. FIX: Call + WhatsApp are now in a HORIZONTAL row (parallel, side-by-side) inside flex container (lines 520-544: div.flex.items-center.gap-3), with gold 'Enquire Now' button below them (lines 546-551). EMI calculator icon already removed from stack (moved to /emi-calculator page)."
+        - working: true
+          agent: "testing"
+          comment: "✅ BUG FIX VERIFIED - ALL TESTS PASS. **Desktop (1440×900)**: Floating container found at bottom-right (fixed bottom-6 right-6 z-40) ✅. Horizontal row container with flex items-center gap-3 ✅. Found 2 buttons in horizontal row ✅. Call button (amber gradient, tel: link) at x=1292, y=752, w=56, h=56 with Phone icon and wiggle animation ✅. WhatsApp button (green #25D366, wa.me link) at x=1360, y=752, w=56, h=56 with official WhatsApp SVG ✅. Y difference: 0px (perfectly parallel) ✅. X difference: 68px (side-by-side horizontal) ✅. Enquire Now button (gradient-gold) found BELOW the horizontal row ✅. CRITICAL: NO EMI/Calculator button found (checked 3 buttons/links, no text or icon matches) ✅. **Mobile (390×844)**: Same structure as desktop, Call + WhatsApp horizontal, Enquire Now below, NO EMI button ✅. **Console**: 0 errors, 0 warnings ✅. Screenshot evidence shows amber Call and green WhatsApp buttons side-by-side horizontally with gold Enquire button below. Bug fix is production-ready."
+
 ## metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: true
 
 ## test_plan:
@@ -240,6 +270,13 @@
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+## agent_communication:
+    - agent: "main"
+      message: "User reported two issues with screenshot: (1) 'tower black one is hiding project details, merge it in project details' — the dark hover-reveal strip on the 'Latest RERA Status Updates' cards (home page) was sliding up on hover and covering the RERA number / status / dates. FIX: Removed the dark absolute-positioned hover strip entirely. Moved the Acres / Towers / Units stats INTO the white RERA panel body as an inline 3-column grid at the top (bordered-bottom separator), so stats are ALWAYS visible, never overlap, no hover needed. (2) 'put whatsapp and direct call icon parallel' — the floating sticky stack on the right had Call stacked ABOVE WhatsApp vertically. FIX: Call + WhatsApp are now in a HORIZONTAL row (parallel, side-by-side) inside an inner flex div, with the gold 'Enquire Now' button below them. The EMI calculator icon was already removed from the stack (moved to /emi-calculator page in a previous turn). Please verify: (a) Home page → 'Latest RERA Status Updates' section → each of the 4 cards should show the hero image at top with name/logo/location visible, and the WHITE panel below the image should contain inline stat strip (Acres · Towers · Units if non-zero) at the top with a border-bottom, followed by RERA number, status badge, dates — ALL stats and details visible with NO dark overlay sliding up on hover. (b) Floating buttons bottom-right: Call button (amber gradient with wiggling phone icon) and WhatsApp button (premium green with official WA SVG) should be SIDE-BY-SIDE in one row (parallel). The gold 'Enquire Now' button sits below them. There should be NO EMI calculator / Calculator icon in the sticky stack. (c) Console errors: should be 0."
+    - agent: "testing"
+      message: "✅ COMPREHENSIVE BUG FIX VERIFICATION COMPLETE - ALL TESTS PASS. Tested TWO targeted bug fixes on desktop (1440×900) and mobile (390×844). **BUG 1 - RERA Cards Hover Overlay**: Desktop ✅ - Found 3 RERA cards, inline stats strip (Acres/Towers/Units) at top of white panel with border-bottom, NO dark hover overlay found, all details visible (RERA number, status, dates). Mobile ✅ - Same structure, inline stats, NO overlay. **BUG 2 - Floating Buttons Layout**: Desktop ✅ - Call (amber, x=1292, y=752) + WhatsApp (green #25D366, x=1360, y=752) are PARALLEL (Y diff: 0px, X diff: 68px), Enquire Now (gold) below them, NO EMI calculator button. Mobile ✅ - Same layout, horizontal buttons, NO EMI button. **Console Check**: 0 errors, 0 warnings ✅. Screenshot evidence confirms both fixes working correctly. Both bug fixes are production-ready with no regressions."
+
 
 ## agent_communication:
     - agent: "main"

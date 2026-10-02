@@ -334,6 +334,7 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch] = useState('');
 
+  const [testimonials, setTestimonials] = useState([]);
   /* -------- load data (progressive, mobile-first) -------- */
   // Critical: settings + projects (above-the-fold). Load first and show the page as soon as they're ready.
   useEffect(() => {
@@ -373,6 +374,7 @@ function App() {
         ]);
         setNews(n || []);
         setTeam(t || []);
+        api('/testimonials').then(setTestimonials).catch(() => {});
       } catch (e) { /* silent */ }
     })();
   }, [loading]);
@@ -473,6 +475,7 @@ function App() {
           settings={settings}
           projects={projects}
           news={news}
+          testimonials={testimonials}
           onProject={setActiveProject}
           onEnquire={openEnquiry}
           goTo={goTo}
@@ -507,37 +510,38 @@ function App() {
       {view === 'team' && <TeamView team={team} />}
       {view === 'news' && <NewsView news={news} />}
       {view === 'contact' && <ContactView settings={settings} onSubmit={openEnquiry} />}
-      {view === 'admin' && <AdminView projects={projects} setProjects={setProjects} settings={settings} setSettings={setSettings} news={news} setNews={setNews} />}
+      {view === 'admin' && <AdminView projects={projects} setProjects={setProjects} settings={settings} setSettings={setSettings} news={news} setNews={setNews} testimonials={testimonials} setTestimonials={setTestimonials} />}
 
       <Footer settings={settings} goTo={goTo} />
 
       {/* Sticky Enquire Button */}
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3 no-print">
-        {/* Instant Call */}
-        <a
-          href={`tel:${settings?.phone?.replace(/\s|-/g, '')}`}
-          className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-white shadow-2xl flex items-center justify-center transition group relative"
-          title="Call Us Instantly"
-          aria-label="Call Us Instantly"
-        >
-          <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-30"></span>
-          <Phone className="w-6 h-6 relative animate-wiggle" />
-        </a>
-        {/* Premium WhatsApp */}
-        <a
-          href={`https://wa.me/${settings?.whatsapp}?text=Hi%20Gillco%20Group%2C%20I%27d%20like%20to%20know%20more.`}
-          target="_blank" rel="noreferrer"
-          className="w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#1EBE57] text-white shadow-[0_8px_24px_rgba(37,211,102,0.45)] hover:shadow-[0_10px_32px_rgba(37,211,102,0.65)] flex items-center justify-center transition-all duration-300 hover:-translate-y-0.5 group relative overflow-hidden"
-          title="Chat on WhatsApp"
-          aria-label="Chat on WhatsApp"
-        >
-          <span className="absolute inset-0 rounded-full ring-2 ring-white/40 group-hover:ring-white/70 animate-pulse"></span>
-          {/* Official WhatsApp glyph SVG */}
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-7 h-7 relative drop-shadow" fill="currentColor" aria-hidden="true">
-            <path d="M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.27-.832-2.52-.143-.372-.214-.487-.6-.487-.187 0-.36-.043-.53-.043-.302 0-.53.115-.746.315-.688.645-1.03 1.332-1.044 2.27v.14c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.318.186-.472.286-1.01.315-1.52 0-.445-2.137-1.094-2.593-1.02M16.46 27.1c-5.98 0-10.86-4.88-10.86-10.86 0-5.965 4.88-10.845 10.86-10.845s10.86 4.88 10.86 10.86-4.88 10.845-10.86 10.845zm0-24.11C9.145 2.99 3.197 8.94 3.197 16.24c0 2.335.615 4.58 1.76 6.57L3 29.73l7.085-1.86a13.144 13.144 0 0 0 6.37 1.634h.015c7.3 0 13.247-5.95 13.247-13.247.015-3.54-1.374-6.87-3.87-9.37-2.498-2.512-5.827-3.9-9.38-3.9z"/>
-          </svg>
-        </a>
-        {/* EMI Calculator — moved to /emi-calculator route (hidden from floating stack per request) */}
+      <div className="fixed bottom-6 right-6 z-40 no-print flex flex-col items-end gap-3">
+        {/* Call + WhatsApp parallel */}
+        <div className="flex items-center gap-3">
+          {/* Instant Call */}
+          <a
+            href={`tel:${settings?.phone?.replace(/\s|-/g, '')}`}
+            className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-white shadow-2xl flex items-center justify-center transition group relative"
+            title="Call Us Instantly"
+            aria-label="Call Us Instantly"
+          >
+            <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-30"></span>
+            <Phone className="w-6 h-6 relative animate-wiggle" />
+          </a>
+          {/* Premium WhatsApp */}
+          <a
+            href={`https://wa.me/${settings?.whatsapp}?text=Hi%20Gillco%20Group%2C%20I%27d%20like%20to%20know%20more.`}
+            target="_blank" rel="noreferrer"
+            className="w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#1EBE57] text-white shadow-[0_8px_24px_rgba(37,211,102,0.45)] hover:shadow-[0_10px_32px_rgba(37,211,102,0.65)] flex items-center justify-center transition-all duration-300 hover:-translate-y-0.5 group relative overflow-hidden"
+            title="Chat on WhatsApp"
+            aria-label="Chat on WhatsApp"
+          >
+            <span className="absolute inset-0 rounded-full ring-2 ring-white/40 group-hover:ring-white/70 animate-pulse"></span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-7 h-7 relative drop-shadow" fill="currentColor" aria-hidden="true">
+              <path d="M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.27-.832-2.52-.143-.372-.214-.487-.6-.487-.187 0-.36-.043-.53-.043-.302 0-.53.115-.746.315-.688.645-1.03 1.332-1.044 2.27v.14c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.318.186-.472.286-1.01.315-1.52 0-.445-2.137-1.094-2.593-1.02M16.46 27.1c-5.98 0-10.86-4.88-10.86-10.86 0-5.965 4.88-10.845 10.86-10.845s10.86 4.88 10.86 10.86-4.88 10.845-10.86 10.845zm0-24.11C9.145 2.99 3.197 8.94 3.197 16.24c0 2.335.615 4.58 1.76 6.57L3 29.73l7.085-1.86a13.144 13.144 0 0 0 6.37 1.634h.015c7.3 0 13.247-5.95 13.247-13.247.015-3.54-1.374-6.87-3.87-9.37-2.498-2.512-5.827-3.9-9.38-3.9z"/>
+            </svg>
+          </a>
+        </div>
         {/* Enquire */}
         <button
           onClick={() => openEnquiry({ type: 'sticky' })}
@@ -700,7 +704,7 @@ function Header({ settings, view, goTo, mobileNav, setMobileNav, onEnquire }) {
 }
 
 /* ============================ HOME ============================ */
-function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onCompareToggle, compare, onVideo }) {
+function HomeView({ settings, projects, news, testimonials, onProject, onEnquire, goTo, onCompareToggle, compare, onVideo }) {
   const featured = projects.find(p => p.slug === 'meraqui') || projects[0];
   const reraCards = useMemo(() => {
     const order = { upcoming: 0, ongoing: 1, delivered: 2 };
@@ -750,45 +754,42 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
                   <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gillco-gold/95 backdrop-blur flex items-center justify-center text-slate-900 shadow-lg">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
-
-                  {/* Hover info strip — slides up with key stats */}
-                  <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out bg-gradient-to-t from-black/90 via-black/80 to-black/60 backdrop-blur-sm text-white px-4 py-3 border-t border-gillco-gold/30">
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      {p.acres !== undefined && p.acres !== null && (
-                        <div>
-                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Acres</div>
-                          <div className="text-sm font-bold">{p.acres}</div>
-                        </div>
-                      )}
-                      {p.towers !== undefined && p.towers !== null && (
-                        <div>
-                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Towers</div>
-                          <div className="text-sm font-bold">{p.towers}</div>
-                        </div>
-                      )}
-                      {p.totalUnits !== undefined && p.totalUnits !== null && (
-                        <div>
-                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Units</div>
-                          <div className="text-sm font-bold">{p.totalUnits}</div>
-                        </div>
-                      )}
-                      {p.constructionProgress !== undefined && p.constructionProgress !== null && !p.towers && (
-                        <div>
-                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Progress</div>
-                          <div className="text-sm font-bold">{p.constructionProgress}%</div>
-                        </div>
-                      )}
-                      {p.handover && !p.totalUnits && (
-                        <div>
-                          <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Handover</div>
-                          <div className="text-sm font-bold">{p.handover}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
                 {/* RERA panel */}
                 <div className="bg-white p-5 space-y-2.5">
+                  {/* Inline stat strip */}
+                  <div className="grid grid-cols-3 gap-2 pb-2 border-b border-slate-100">
+                    {p.acres !== undefined && p.acres !== null && p.acres !== 0 && (
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Acres</div>
+                        <div className="text-sm font-bold text-gillco-green">{p.acres}</div>
+                      </div>
+                    )}
+                    {p.towers !== undefined && p.towers !== null && p.towers !== 0 && (
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Towers</div>
+                        <div className="text-sm font-bold text-gillco-green">{p.towers}</div>
+                      </div>
+                    )}
+                    {p.units !== undefined && p.units !== null && p.units !== 0 && (
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Units</div>
+                        <div className="text-sm font-bold text-gillco-green">{p.units}</div>
+                      </div>
+                    )}
+                    {(!p.towers || p.towers === 0) && p.constructionPercent !== undefined && p.constructionPercent !== null && (
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Progress</div>
+                        <div className="text-sm font-bold text-gillco-green">{p.constructionPercent}%</div>
+                      </div>
+                    )}
+                    {(!p.units || p.units === 0) && p.handoverDate && (
+                      <div className="text-center">
+                        <div className="text-[9px] uppercase tracking-widest text-gillco-gold font-semibold">Handover</div>
+                        <div className="text-sm font-bold text-gillco-green">{p.handoverDate}</div>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">RERA Reg. Number</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">VERIFIED</span>
@@ -930,6 +931,12 @@ function HomeView({ settings, projects, news, onProject, onEnquire, goTo, onComp
         </div>
       </section>
 
+      {/* Testimonials Carousel */}
+      <TestimonialsCarousel testimonials={testimonials} projects={projects} />
+
+      {/* FAQ Accordion */}
+      <FAQSection onEnquire={onEnquire} />
+
       {/* Announcements */}
       <section className="py-16 bg-gillco-green text-white">
         <div className="max-w-7xl mx-auto px-4">
@@ -1042,7 +1049,15 @@ function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
       <div className="relative h-64 overflow-hidden">
         <img loading="lazy" decoding="async" src={safeImg(project.heroImage)} alt={project.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
         <span className={`absolute top-4 left-4 text-xs font-semibold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>
-        <span className="absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-800 capitalize">{project.category}</span>
+        <span className="absolute top-4 right-4 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-800 capitalize">
+          {project.hasResidential && project.hasCommercial
+            ? '🏠🏢 Residential + Commercial'
+            : project.hasResidential
+              ? '🏠 Residential'
+              : project.hasCommercial
+                ? '🏢 Commercial'
+                : project.category}
+        </span>
       </div>
       <div className="p-6">
         <div className="flex items-start gap-3">
@@ -1263,6 +1278,69 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
                 </div>
                 <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                   <div className="h-full gradient-emerald" style={{ width: `${project.constructionPercent}%` }} />
+                </div>
+              </div>
+            )}
+
+            {/* Residential + Commercial Side-by-Side */}
+            {(project.hasResidential || project.hasCommercial) && (project.residentialOffering || project.commercialOffering) && (
+              <div className="mt-8">
+                <h3 className="font-serif text-2xl text-gillco-green mb-4">Available Offerings</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {project.hasResidential && (
+                    <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 hover:shadow-lg transition">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl">🏠</span>
+                        <h4 className="font-serif text-xl text-emerald-900">Residential</h4>
+                      </div>
+                      <dl className="space-y-2 text-sm">
+                        {project.residentialOffering?.unitMix && (
+                          <div><dt className="text-xs uppercase tracking-wider text-slate-500">Unit Mix</dt><dd className="font-semibold text-slate-800">{project.residentialOffering.unitMix}</dd></div>
+                        )}
+                        {project.residentialOffering?.priceRange && (
+                          <div><dt className="text-xs uppercase tracking-wider text-slate-500">Price Range</dt><dd className="font-semibold text-gillco-gold">{project.residentialOffering.priceRange}</dd></div>
+                        )}
+                        {project.residentialOffering?.carpet && (
+                          <div><dt className="text-xs uppercase tracking-wider text-slate-500">Carpet / Super Area</dt><dd className="font-semibold text-slate-800">{project.residentialOffering.carpet}</dd></div>
+                        )}
+                      </dl>
+                      {Array.isArray(project.residentialOffering?.highlights) && project.residentialOffering.highlights.length > 0 && (
+                        <ul className="mt-3 space-y-1">
+                          {project.residentialOffering.highlights.map((h, i) => (
+                            <li key={i} className="text-xs text-slate-700 flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" /> {h}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <button onClick={() => onEnquire({ projectId: project.id, type: 'residential' })} className="mt-4 w-full py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-full text-sm font-semibold">Enquire — Residential</button>
+                    </div>
+                  )}
+                  {project.hasCommercial && (
+                    <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white p-5 hover:shadow-lg transition">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl">🏢</span>
+                        <h4 className="font-serif text-xl text-amber-900">Commercial</h4>
+                      </div>
+                      <dl className="space-y-2 text-sm">
+                        {project.commercialOffering?.unitMix && (
+                          <div><dt className="text-xs uppercase tracking-wider text-slate-500">Unit Type</dt><dd className="font-semibold text-slate-800">{project.commercialOffering.unitMix}</dd></div>
+                        )}
+                        {project.commercialOffering?.priceRange && (
+                          <div><dt className="text-xs uppercase tracking-wider text-slate-500">Price Range</dt><dd className="font-semibold text-amber-700">{project.commercialOffering.priceRange}</dd></div>
+                        )}
+                        {project.commercialOffering?.carpet && (
+                          <div><dt className="text-xs uppercase tracking-wider text-slate-500">Carpet / Super Area</dt><dd className="font-semibold text-slate-800">{project.commercialOffering.carpet}</dd></div>
+                        )}
+                      </dl>
+                      {Array.isArray(project.commercialOffering?.highlights) && project.commercialOffering.highlights.length > 0 && (
+                        <ul className="mt-3 space-y-1">
+                          {project.commercialOffering.highlights.map((h, i) => (
+                            <li key={i} className="text-xs text-slate-700 flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" /> {h}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <button onClick={() => onEnquire({ projectId: project.id, type: 'commercial' })} className="mt-4 w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-full text-sm font-semibold">Enquire — Commercial</button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1945,6 +2023,159 @@ function TeamView({ team }) {
 }
 
 /* ============================ NEWS ============================ */
+/* ============================ TESTIMONIALS CAROUSEL ============================ */
+function TestimonialsCarousel({ testimonials = [], projects = [] }) {
+  const [idx, setIdx] = useState(0);
+  const items = Array.isArray(testimonials) ? testimonials : [];
+  const count = items.length;
+
+  useEffect(() => {
+    if (count <= 1) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % count), 7000);
+    return () => clearInterval(t);
+  }, [count]);
+
+  if (count === 0) return null;
+
+  const current = items[idx];
+  const projectName = current.projectName || projects.find(p => p.id === current.projectId)?.name || '';
+  const prev = () => setIdx((idx - 1 + count) % count);
+  const next = () => setIdx((idx + 1) % count);
+
+  return (
+    <section className="py-16 md:py-20 bg-gillco-cream relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-72 h-72 bg-gillco-gold/5 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-gillco-green/5 rounded-full translate-x-1/3 translate-y-1/3 blur-3xl" />
+      <div className="max-w-5xl mx-auto px-4 relative">
+        <div className="text-center mb-10">
+          <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Our Family of Home-Owners</p>
+          <h2 className="font-serif text-4xl md:text-5xl text-gillco-green mt-3">What Our Residents Say</h2>
+        </div>
+
+        <div className="relative">
+          <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border border-gillco-gold/20 relative">
+            <span className="absolute -top-5 left-8 text-7xl font-serif text-gillco-gold leading-none select-none">“</span>
+            <div className="flex items-start gap-6 flex-wrap">
+              {current.photo ? (
+                <img loading="lazy" decoding="async" src={safeImg(current.photo)} alt={current.name} className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover ring-4 ring-gillco-gold/30 shadow-md shrink-0" />
+              ) : (
+                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gillco-green text-white flex items-center justify-center font-serif text-2xl shrink-0">
+                  {(current.name || '?').charAt(0)}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 mb-2">
+                  {Array.from({ length: current.rating || 5 }).map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-gillco-gold text-gillco-gold" />
+                  ))}
+                </div>
+                <p className="text-slate-700 italic text-lg md:text-xl leading-relaxed">
+                  {current.quote}
+                </p>
+                <div className="mt-4">
+                  <div className="font-serif text-xl text-gillco-green">{current.name}</div>
+                  <div className="text-sm text-slate-500">
+                    {current.role}
+                    {current.role && projectName && ' · '}
+                    {projectName && <span className="text-gillco-gold font-semibold">{projectName}</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {count > 1 && (
+            <>
+              <button onClick={prev} aria-label="Previous" className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 md:-translate-x-6 w-11 h-11 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center hover:bg-gillco-green hover:text-white transition z-10">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button onClick={next} aria-label="Next" className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 md:translate-x-6 w-11 h-11 rounded-full bg-white shadow-lg border border-slate-200 flex items-center justify-center hover:bg-gillco-green hover:text-white transition z-10">
+                <ChevronRight className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center justify-center gap-2 mt-6">
+                {items.map((_, i) => (
+                  <button
+                    key={i}
+                    aria-label={`Go to testimonial ${i + 1}`}
+                    onClick={() => setIdx(i)}
+                    className={`h-2 rounded-full transition-all ${i === idx ? 'bg-gillco-gold w-8' : 'bg-slate-300 w-2'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================ FAQ ACCORDION ============================ */
+const FAQ_LIST = [
+  { q: 'Are all Gillco Group projects RERA approved?', a: 'Yes. Every Gillco project is registered under the Real Estate (Regulation and Development) Act, 2016. The RERA registration number is published on each project page. You can independently verify any project at rera.punjab.gov.in.' },
+  { q: 'How are payments to Gillco Group made? Is cash accepted?', a: 'All payments must be made in the name of “Gillco Developers and Builders Private Limited” via account-payee cheque, demand draft, pay order or RTGS/NEFT. Cash is strictly NOT accepted for any booking, instalment or allotment. Official receipts are issued only by Gillco Group on company letterhead.' },
+  { q: 'When does the price I was quoted get locked in?', a: 'The applicable rate is the one prevailing on the date your formal Application for Booking is received by Gillco Group — not the rate discussed at any earlier stage. Pricing shown here is indicative and may change at the Company’s sole discretion.' },
+  { q: 'Can I take a home loan? Which banks are empanelled?', a: 'Yes. Gillco Group is empanelled with top banks and HFCs including SBI, HDFC, ICICI, LIC Housing Finance and Axis Bank. Our team helps you compare offers and complete pre-approval. Try our EMI calculator for an instant estimate.' },
+  { q: 'What is the possession / handover timeline?', a: 'Each project has its own committed timeline mentioned in the Allotment Letter and on the project page. Current progress is also disclosed under “Latest RERA Status Updates” on the home page.' },
+  { q: 'Can I cancel my booking? What is the refund policy?', a: 'Yes, bookings can be cancelled by submitting a written request to Gillco Group. Refunds are processed within 45–90 working days as per the signed Allotment Letter. Standard deductions apply (up to 10% of BSP + GST already deposited + non-refundable brokerage). Full details on our Cancellation & Refund Policy page.' },
+  { q: 'Is NRI purchase allowed? How do NRIs pay?', a: 'Yes. NRIs and PIOs may purchase and remit funds through NRE/NRO/FCNR accounts in compliance with FEMA, 1999 and RBI regulations. We assist with the entire KYC + remittance paperwork.' },
+  { q: 'What is included in the quoted price?', a: 'The quoted price is the Basic Sale Price (BSP). GST, stamp duty, registration, PLC (preferential location charges), floor rise, parking, maintenance deposits and any other statutory levies are charged additionally at prevailing rates on the date of payment.' },
+  { q: 'Can I visit the construction site?', a: 'Absolutely. Site visits are encouraged — the best way to appreciate construction quality, specifications and the neighbourhood. Request a visit via the Enquire button, WhatsApp, or call us; we’ll arrange a convenient slot with pickup from a city landmark if needed.' },
+  { q: 'Who should I contact if someone outside Gillco asks for payment?', a: 'No channel partner, sales agent or third party is authorised to receive payments on behalf of Gillco Group. If anyone asks for payment outside the official modes listed in our Payment Policy, please immediately report it to support@gillcogroup.org or call +91 90417 95879.' },
+];
+
+function FAQSection({ onEnquire }) {
+  const [open, setOpen] = useState(0);
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ_LIST.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  };
+  return (
+    <section className="py-16 md:py-20 bg-white">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="text-center mb-10">
+          <p className="text-xs tracking-[0.3em] text-gillco-gold font-semibold uppercase">Buyer Essentials</p>
+          <h2 className="font-serif text-4xl md:text-5xl text-gillco-green mt-3">Frequently Asked Questions</h2>
+          <p className="text-slate-500 mt-3">Everything you need to know about buying a Gillco home — RERA, payments, possession, loans and more.</p>
+        </div>
+
+        <div className="space-y-3">
+          {FAQ_LIST.map((f, i) => {
+            const isOpen = open === i;
+            return (
+              <div key={i} className={`rounded-xl border transition-all ${isOpen ? 'border-gillco-gold shadow-md bg-gillco-cream' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                <button
+                  onClick={() => setOpen(isOpen ? -1 : i)}
+                  className="w-full text-left px-5 py-4 flex items-center justify-between gap-3"
+                  aria-expanded={isOpen}
+                >
+                  <span className="font-serif text-base md:text-lg text-gillco-green pr-4">{f.q}</span>
+                  <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all ${isOpen ? 'bg-gillco-gold text-slate-900 rotate-45' : 'bg-slate-100 text-slate-600'}`}>
+                    <Plus className="w-4 h-4" />
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="px-5 pb-5 text-slate-700 leading-relaxed text-sm md:text-base whitespace-pre-line">{f.a}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="text-center mt-8">
+          <p className="text-slate-600 text-sm mb-3">Still have questions?</p>
+          <button onClick={() => onEnquire({ type: 'faq' })} className="px-6 py-3 gradient-gold text-slate-900 rounded-full font-semibold hover:brightness-110 transition inline-flex items-center gap-2">
+            <Sparkles className="w-4 h-4" /> Ask Our Team
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ---------- News / Spotlight helpers ---------- */
 // Simple markdown-ish renderer: **bold**, *italic*, [text](url), bullets with "- ", blank line = paragraph
 function renderNewsBody(text, dark = false) {
@@ -2140,7 +2371,7 @@ function ContactView({ settings, onSubmit }) {
 }
 
 /* ============================ ADMIN (CMS) ============================ */
-function AdminView({ projects, setProjects, settings, setSettings, news, setNews }) {
+function AdminView({ projects, setProjects, settings, setSettings, news, setNews, testimonials, setTestimonials }) {
   const [authed, setAuthed] = useState(false);
   const [pass, setPass] = useState('');
   const [tab, setTab] = useState('projects');
@@ -2216,6 +2447,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     { id: 'hero', label: 'Hero Slides' },
     { id: 'videos', label: 'Videos' },
     { id: 'news', label: 'News' },
+    { id: 'testimonials', label: 'Testimonials' },
     { id: 'posts', label: 'Blog / Social' },
     { id: 'team', label: 'Team' },
     { id: 'settings', label: 'Site & Brand' },
@@ -2277,6 +2509,9 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
         )}
         {tab === 'news' && (
           <NewsEditor news={news} setNews={setNews} />
+        )}
+        {tab === 'testimonials' && (
+          <TestimonialsEditor testimonials={testimonials} setTestimonials={setTestimonials} projects={projects} />
         )}
         {tab === 'posts' && (
           <PostsEditor posts={posts} setPosts={setPosts} />
@@ -2498,6 +2733,108 @@ Use blank lines for paragraphs.
                 <p className="text-[10px] text-slate-400 mt-1">Leave blank to show forever. Expired items still visible in admin for editing.</p>
               </div>
               <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save Announcement</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TestimonialsEditor({ testimonials, setTestimonials, projects = [] }) {
+  const [editing, setEditing] = useState(null);
+  const save = async (t) => {
+    try {
+      if (t.id && testimonials.find(x => x.id === t.id)) {
+        const upd = await api(`/testimonials/${t.id}`, { method: 'PUT', body: JSON.stringify(t) });
+        setTestimonials(prev => prev.map(x => x.id === upd.id ? upd : x));
+      } else {
+        const created = await api('/testimonials', { method: 'POST', body: JSON.stringify(t) });
+        setTestimonials(prev => [created, ...prev]);
+      }
+      setEditing(null);
+      toast.success('Saved');
+    } catch (e) { toast.error(e.message || 'Save failed'); }
+  };
+  const del = async (id) => {
+    if (!confirm('Delete this testimonial?')) return;
+    await api(`/testimonials/${id}`, { method: 'DELETE' });
+    setTestimonials(prev => prev.filter(x => x.id !== id));
+  };
+  return (
+    <div className="bg-white rounded-2xl p-6 border border-slate-100 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-serif text-2xl text-gillco-green">Buyer Testimonials</h3>
+          <p className="text-xs text-slate-500 mt-1">Rotating carousel on the home page. Add real quotes from happy home-owners for social proof.</p>
+        </div>
+        <button onClick={() => setEditing({ name: '', role: 'Resident', photo: '', projectId: '', quote: '', rating: 5, published: true })} className="px-4 py-2 gradient-gold text-slate-900 rounded-full text-sm font-semibold inline-flex items-center gap-2"><Plus className="w-4 h-4" /> Add Testimonial</button>
+      </div>
+      {testimonials.length === 0 && <p className="text-sm text-slate-500 py-4">No testimonials yet.</p>}
+      <div className="space-y-2">
+        {testimonials.map(t => (
+          <div key={t.id} className="border border-slate-100 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-1 min-w-[220px]">
+              {t.photo ? (
+                <img loading="lazy" decoding="async" src={safeImg(t.photo)} alt="" className="w-12 h-12 rounded-full object-cover" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gillco-green text-white flex items-center justify-center font-serif">{(t.name || '?').charAt(0)}</div>
+              )}
+              <div className="flex-1">
+                <div className="flex items-center gap-1 text-xs">
+                  {Array.from({ length: t.rating || 5 }).map((_, i) => <Star key={i} className="w-3 h-3 fill-gillco-gold text-gillco-gold" />)}
+                </div>
+                <div className="text-sm font-semibold text-slate-800">{t.name}</div>
+                <div className="text-xs text-slate-500">{t.role}{t.projectName ? ` · ${t.projectName}` : ''}</div>
+                <div className="text-xs text-slate-500 italic line-clamp-1">"{t.quote}"</div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(t)} className="px-3 py-1.5 bg-gillco-green text-white text-xs rounded-full inline-flex gap-1 items-center"><Edit3 className="w-3 h-3" /> Edit</button>
+              <button onClick={() => del(t.id)} className="px-3 py-1.5 border border-red-300 text-red-600 text-xs rounded-full"><Trash2 className="w-3 h-3" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {editing && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white max-w-xl w-full rounded-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-serif text-xl text-gillco-green">{editing.id ? 'Edit' : 'New'} Testimonial</h4>
+              <button onClick={() => setEditing(null)}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Name" value={editing.name} onChange={v => setEditing({ ...editing, name: v })} />
+                <Field label="Role (e.g. Resident, Owner)" value={editing.role || ''} onChange={v => setEditing({ ...editing, role: v })} />
+              </div>
+              <MediaUploader label="Photo (circular)" value={editing.photo} onChange={v => setEditing({ ...editing, photo: v })} accept="image/*" hint="Square headshot works best" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-500 uppercase">Project</label>
+                  <select value={editing.projectId || ''} onChange={e => {
+                    const slug = e.target.value;
+                    const p = projects.find(x => x.id === slug);
+                    setEditing({ ...editing, projectId: slug, projectName: p?.name || '' });
+                  }} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg">
+                    <option value="">— None —</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 uppercase">Rating (1–5)</label>
+                  <input type="number" min="1" max="5" value={editing.rating || 5} onChange={e => setEditing({ ...editing, rating: Math.max(1, Math.min(5, Number(e.target.value) || 5)) })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 uppercase">Quote</label>
+                <textarea rows={4} value={editing.quote || ''} onChange={e => setEditing({ ...editing, quote: e.target.value })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg resize-none" placeholder="Share what the resident said about living at Gillco…" />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editing.published !== false} onChange={e => setEditing({ ...editing, published: e.target.checked })} />
+                Published (show on home page)
+              </label>
+              <button onClick={() => save(editing)} className="w-full py-2.5 gradient-emerald text-white rounded-full font-semibold"><Save className="w-4 h-4 inline mr-1" /> Save</button>
             </div>
           </div>
         </div>
@@ -3178,6 +3515,48 @@ function ProjectEditor({ project, onSave, onClose }) {
           <Field label="Acres" type="number" value={p.acres} onChange={v => setP({ ...p, acres: Number(v) })} />
           <Field label="Towers" type="number" value={p.towers} onChange={v => setP({ ...p, towers: Number(v) })} />
           <Field label="Total Units" type="number" value={p.units} onChange={v => setP({ ...p, units: Number(v) })} />
+        </div>
+
+        {/* Residential + Commercial Offerings (side-by-side on detail page if both filled) */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-2">Offerings (Residential + Commercial)</h4>
+        <p className="text-xs text-slate-500 mb-3">Tick each type available in this project. Fill the per-type details to show two side-by-side cards on the detail page. Projects with both are marked "Residential + Commercial" on cards and shown under both filters.</p>
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Residential offering */}
+          <div className={`rounded-xl border-2 p-4 transition ${p.hasResidential ? 'border-emerald-400 bg-emerald-50/40' : 'border-slate-200 bg-slate-50'}`}>
+            <label className="flex items-center gap-2 font-semibold text-emerald-800 cursor-pointer">
+              <input type="checkbox" checked={!!p.hasResidential} onChange={e => setP({ ...p, hasResidential: e.target.checked })} className="w-4 h-4 accent-emerald-700" />
+              🏠 Residential Available
+            </label>
+            {p.hasResidential && (
+              <div className="mt-3 space-y-2">
+                <Field label="Unit Mix (e.g. 3/4 BHK)" value={p.residentialOffering?.unitMix || ''} onChange={v => setP({ ...p, residentialOffering: { ...(p.residentialOffering || {}), unitMix: v } })} />
+                <Field label="Price Range (e.g. ₹1.5 Cr onwards)" value={p.residentialOffering?.priceRange || ''} onChange={v => setP({ ...p, residentialOffering: { ...(p.residentialOffering || {}), priceRange: v } })} />
+                <Field label="Carpet / Super Area" value={p.residentialOffering?.carpet || ''} onChange={v => setP({ ...p, residentialOffering: { ...(p.residentialOffering || {}), carpet: v } })} />
+                <div>
+                  <label className="text-xs text-slate-500 uppercase">Highlights (comma-separated)</label>
+                  <input value={Array.isArray(p.residentialOffering?.highlights) ? p.residentialOffering.highlights.join(', ') : (p.residentialOffering?.highlights || '')} onChange={e => setP({ ...p, residentialOffering: { ...(p.residentialOffering || {}), highlights: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" placeholder="Modular kitchen, VRF AC, Sky garden" />
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Commercial offering */}
+          <div className={`rounded-xl border-2 p-4 transition ${p.hasCommercial ? 'border-amber-400 bg-amber-50/40' : 'border-slate-200 bg-slate-50'}`}>
+            <label className="flex items-center gap-2 font-semibold text-amber-800 cursor-pointer">
+              <input type="checkbox" checked={!!p.hasCommercial} onChange={e => setP({ ...p, hasCommercial: e.target.checked })} className="w-4 h-4 accent-amber-700" />
+              🏢 Commercial Available
+            </label>
+            {p.hasCommercial && (
+              <div className="mt-3 space-y-2">
+                <Field label="Unit Type (e.g. Retail / Office / SCO)" value={p.commercialOffering?.unitMix || ''} onChange={v => setP({ ...p, commercialOffering: { ...(p.commercialOffering || {}), unitMix: v } })} />
+                <Field label="Price Range (e.g. ₹80 L onwards)" value={p.commercialOffering?.priceRange || ''} onChange={v => setP({ ...p, commercialOffering: { ...(p.commercialOffering || {}), priceRange: v } })} />
+                <Field label="Carpet / Super Area" value={p.commercialOffering?.carpet || ''} onChange={v => setP({ ...p, commercialOffering: { ...(p.commercialOffering || {}), carpet: v } })} />
+                <div>
+                  <label className="text-xs text-slate-500 uppercase">Highlights (comma-separated)</label>
+                  <input value={Array.isArray(p.commercialOffering?.highlights) ? p.commercialOffering.highlights.join(', ') : (p.commercialOffering?.highlights || '')} onChange={e => setP({ ...p, commercialOffering: { ...(p.commercialOffering || {}), highlights: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } })} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" placeholder="High footfall, Metro frontage, Lockable shops" />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Media */}
