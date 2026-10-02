@@ -8,6 +8,7 @@ import {
   Calendar, CheckCircle2, Clock, Sparkles, Download, Printer, Trash2, Plus,
   Edit3, Save, LogIn, LogOut, Filter, Star, ExternalLink, ShieldCheck,
   Play, Facebook, Instagram, Linkedin, Youtube, Twitter,
+  Calculator,
 } from 'lucide-react';
 
 /* ---------- helpers ---------- */
@@ -325,6 +326,8 @@ function App() {
   const [showEnquiry, setShowEnquiry] = useState(false);
   const [enquiryPrefill, setEnquiryPrefill] = useState({});
   const [showVideo, setShowVideo] = useState(null);
+  const [showEmi, setShowEmi] = useState(false);
+  const [emiPrefillPrice, setEmiPrefillPrice] = useState(null);
 
   const [mobileNav, setMobileNav] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -509,6 +512,14 @@ function App() {
           <MessageCircle className="w-6 h-6" />
         </a>
         <button
+          onClick={() => setShowEmi(true)}
+          className="w-14 h-14 rounded-full bg-gillco-green hover:bg-gillco-green-dark text-white shadow-2xl flex items-center justify-center transition"
+          title="EMI Calculator"
+          aria-label="Open EMI Calculator"
+        >
+          <Calculator className="w-6 h-6" />
+        </button>
+        <button
           onClick={() => openEnquiry({ type: 'sticky' })}
           className="px-5 h-14 rounded-full gradient-gold text-slate-900 font-semibold shadow-2xl hover:brightness-110 transition flex items-center gap-2"
         >
@@ -559,6 +570,15 @@ function App() {
 
       {showVideo && (
         <VideoModal video={showVideo} onClose={() => setShowVideo(null)} />
+      )}
+
+      {showEmi && (
+        <EmiCalculatorModal
+          initialPrice={emiPrefillPrice}
+          projects={projects}
+          onClose={() => { setShowEmi(false); setEmiPrefillPrice(null); }}
+          onEnquire={(prefill) => { setShowEmi(false); setEnquiryPrefill(prefill || { type: 'emi' }); setShowEnquiry(true); }}
+        />
       )}
     </div>
   );
@@ -1570,6 +1590,176 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
 }
 
 /* ============================ VIDEO MODAL ============================ */
+/* ============================ EMI CALCULATOR MODAL ============================ */
+// Parses a price range string like "₹1.5 Cr onwards" or "₹85 L - 1.2 Cr" and returns an INR number.
+function parsePriceToINR(input) {
+  if (!input && input !== 0) return 0;
+  if (typeof input === 'number') return input;
+  const s = String(input).toLowerCase();
+  // Match the first number in the string
+  const match = s.match(/([\d.,]+)\s*(cr|crore|crores|l|lac|lacs|lakh|lakhs|k|thousand)?/);
+  if (!match) return 0;
+  const num = parseFloat(match[1].replace(/,/g, '')) || 0;
+  const unit = match[2] || '';
+  if (unit.startsWith('cr')) return num * 1e7;
+  if (unit.startsWith('l') || unit.startsWith('lac') || unit.startsWith('lakh')) return num * 1e5;
+  if (unit.startsWith('k') || unit.startsWith('thousand')) return num * 1e3;
+  return num;
+}
+
+function fmtINR(n) {
+  if (!isFinite(n)) return '₹0';
+  if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)} Cr`;
+  if (n >= 1e5) return `₹${(n / 1e5).toFixed(2)} L`;
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
+}
+
+function EmiCalculatorModal({ initialPrice, projects = [], onClose, onEnquire }) {
+  const seedPrice = initialPrice && initialPrice > 0 ? initialPrice : 10000000; // ₹1 Cr default
+  const [price, setPrice] = useState(seedPrice);
+  const [downPct, setDownPct] = useState(20);
+  const [rate, setRate] = useState(8.5);
+  const [tenure, setTenure] = useState(20);
+  const [projectSlug, setProjectSlug] = useState('');
+
+  const onPickProject = (slug) => {
+    setProjectSlug(slug);
+    if (!slug) return;
+    const p = projects.find(x => x.slug === slug);
+    const parsed = parsePriceToINR(p?.priceRange || p?.startingPrice || p?.price);
+    if (parsed > 0) setPrice(parsed);
+  };
+
+  const downPayment = Math.round((price * downPct) / 100);
+  const loanAmount = Math.max(0, price - downPayment);
+  const monthlyRate = rate / 100 / 12;
+  const months = tenure * 12;
+  const emi = monthlyRate > 0 && months > 0
+    ? Math.round((loanAmount * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1))
+    : Math.round(loanAmount / Math.max(1, months));
+  const totalPayable = emi * months;
+  const totalInterest = Math.max(0, totalPayable - loanAmount);
+
+  const requestPreapproval = () => {
+    const projName = projects.find(x => x.slug === projectSlug)?.name || '';
+    onEnquire({
+      type: 'emi',
+      projectId: projectSlug || '',
+      message: `EMI Pre-approval request\nProperty: ${projName || 'TBD'}\nPrice: ${fmtINR(price)}\nDown Payment: ${fmtINR(downPayment)} (${downPct}%)\nLoan: ${fmtINR(loanAmount)}\nTenure: ${tenure} yrs @ ${rate}%\nEstimated EMI: ${fmtINR(emi)}`,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white max-w-3xl w-full rounded-2xl shadow-2xl my-8 max-h-[92vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 bg-white rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gillco-green text-white flex items-center justify-center">
+              <Calculator className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-serif text-xl md:text-2xl text-gillco-green leading-tight">Home Loan EMI Calculator</h3>
+              <p className="text-xs text-slate-500">Estimate your monthly instalment · Powered by Gillco Group</p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-full border border-slate-200 hover:bg-slate-50 flex items-center justify-center"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="p-6 grid md:grid-cols-2 gap-6">
+          {/* Inputs */}
+          <div className="space-y-5">
+            {projects.length > 0 && (
+              <div>
+                <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Pre-fill from Project (optional)</label>
+                <select value={projectSlug} onChange={e => onPickProject(e.target.value)} className="w-full mt-1.5 px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white">
+                  <option value="">— Choose a project —</option>
+                  {projects.map(p => (
+                    <option key={p.slug} value={p.slug}>{p.name} {p.priceRange ? `· ${p.priceRange}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <div className="flex justify-between items-baseline">
+                <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Property Price</label>
+                <span className="text-sm font-bold text-gillco-green">{fmtINR(price)}</span>
+              </div>
+              <input type="range" min="2500000" max="100000000" step="100000" value={price} onChange={e => setPrice(Number(e.target.value))} className="w-full accent-gillco-green mt-2" />
+              <input type="number" value={price} onChange={e => setPrice(Math.max(0, Number(e.target.value) || 0))} className="w-full mt-2 px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono" />
+              <div className="flex justify-between text-[10px] text-slate-400 mt-1 uppercase tracking-wider"><span>₹25 L</span><span>₹10 Cr</span></div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-baseline">
+                <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Down Payment</label>
+                <span className="text-sm font-bold text-gillco-green">{downPct}% · {fmtINR(downPayment)}</span>
+              </div>
+              <input type="range" min="10" max="90" step="5" value={downPct} onChange={e => setDownPct(Number(e.target.value))} className="w-full accent-gillco-gold mt-2" />
+              <div className="flex justify-between text-[10px] text-slate-400 mt-1 uppercase tracking-wider"><span>10%</span><span>90%</span></div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-baseline">
+                <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Interest Rate (p.a.)</label>
+                <span className="text-sm font-bold text-gillco-green">{rate.toFixed(2)}%</span>
+              </div>
+              <input type="range" min="6" max="12" step="0.05" value={rate} onChange={e => setRate(Number(e.target.value))} className="w-full accent-gillco-green mt-2" />
+              <div className="flex justify-between text-[10px] text-slate-400 mt-1 uppercase tracking-wider"><span>6%</span><span>12%</span></div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-baseline">
+                <label className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Loan Tenure</label>
+                <span className="text-sm font-bold text-gillco-green">{tenure} yrs</span>
+              </div>
+              <input type="range" min="5" max="30" step="1" value={tenure} onChange={e => setTenure(Number(e.target.value))} className="w-full accent-gillco-gold mt-2" />
+              <div className="flex justify-between text-[10px] text-slate-400 mt-1 uppercase tracking-wider"><span>5 yrs</span><span>30 yrs</span></div>
+            </div>
+          </div>
+
+          {/* Outputs */}
+          <div className="bg-gradient-to-br from-gillco-green to-gillco-green-dark rounded-xl p-6 text-white flex flex-col">
+            <p className="text-[11px] uppercase tracking-widest text-gillco-gold font-semibold">Monthly EMI</p>
+            <p className="font-serif text-4xl md:text-5xl font-semibold mt-1 leading-none">{fmtINR(emi)}</p>
+            <p className="text-xs text-white/70 mt-1">per month for {tenure} years</p>
+
+            <div className="h-px bg-white/15 my-5" />
+
+            <dl className="space-y-3 text-sm">
+              <div className="flex items-center justify-between"><dt className="text-white/80">Loan Amount</dt><dd className="font-semibold">{fmtINR(loanAmount)}</dd></div>
+              <div className="flex items-center justify-between"><dt className="text-white/80">Down Payment</dt><dd className="font-semibold">{fmtINR(downPayment)}</dd></div>
+              <div className="flex items-center justify-between"><dt className="text-white/80">Total Interest</dt><dd className="font-semibold text-gillco-gold">{fmtINR(totalInterest)}</dd></div>
+              <div className="flex items-center justify-between pt-2 border-t border-white/10"><dt className="text-white/80">Total Payable</dt><dd className="font-bold text-lg">{fmtINR(totalPayable + downPayment)}</dd></div>
+            </dl>
+
+            {/* Pie-ish split bar */}
+            <div className="mt-6">
+              <p className="text-[10px] uppercase tracking-widest text-gillco-gold mb-1.5">Principal vs Interest</p>
+              <div className="h-2 w-full rounded-full overflow-hidden bg-white/15 flex">
+                <div className="bg-white" style={{ width: `${(loanAmount / Math.max(1, totalPayable)) * 100}%` }} />
+                <div className="bg-gillco-gold" style={{ width: `${(totalInterest / Math.max(1, totalPayable)) * 100}%` }} />
+              </div>
+              <div className="flex justify-between text-[10px] text-white/70 mt-1.5">
+                <span>Principal {Math.round((loanAmount / Math.max(1, totalPayable)) * 100)}%</span>
+                <span>Interest {Math.round((totalInterest / Math.max(1, totalPayable)) * 100)}%</span>
+              </div>
+            </div>
+
+            <button
+              onClick={requestPreapproval}
+              className="mt-6 w-full py-3 rounded-full bg-gillco-gold text-slate-900 font-bold hover:brightness-110 transition inline-flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Sparkles className="w-4 h-4" /> Get Pre-approval Help
+            </button>
+            <p className="text-[10px] text-white/60 mt-2 text-center">Indicative calculation. Rates vary by bank, profile and tenure.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VideoModal({ video, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-y-auto no-print flex items-center justify-center p-4" onClick={onClose}>
