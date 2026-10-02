@@ -60,6 +60,13 @@
   100% { background-position: 1000px 0; }
 }
 
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(12deg); }
+}
+.animate-wiggle { animation: wiggle 1.4s ease-in-out infinite; transform-origin: 50% 50%; }
+
 @media print {
   .no-print { display: none !important; }
   body { background: white; }

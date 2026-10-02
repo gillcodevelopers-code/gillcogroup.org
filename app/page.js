@@ -403,7 +403,17 @@ function App() {
   const filtered = useMemo(() => {
     return projects.filter(p => {
       if (statusFilter !== 'all' && p.status !== statusFilter) return false;
-      if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
+      if (categoryFilter !== 'all') {
+        // Match against primary category OR offerings/flags (so a mixed-use project appears under both Residential and Commercial)
+        const primary = (p.category || '').toLowerCase();
+        const offerings = Array.isArray(p.offerings) ? p.offerings.map(o => (o.type || '').toLowerCase()) : [];
+        const hasResidential = p.hasResidential === true || primary === 'residential' || primary === 'mixed-use' || offerings.includes('residential');
+        const hasCommercial = p.hasCommercial === true || primary === 'commercial' || primary === 'mixed-use' || offerings.includes('commercial');
+        const hasIndustrial = primary === 'industrial';
+        if (categoryFilter === 'residential' && !hasResidential) return false;
+        if (categoryFilter === 'commercial' && !hasCommercial) return false;
+        if (categoryFilter === 'industrial' && !hasIndustrial) return false;
+      }
       if (search && !`${p.name} ${p.location}`.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
@@ -503,22 +513,32 @@ function App() {
 
       {/* Sticky Enquire Button */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3 no-print">
+        {/* Instant Call */}
         <a
-          href={`https://wa.me/${settings?.whatsapp}?text=Hi%20Gillco%20Group`}
-          target="_blank" rel="noreferrer"
-          className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-2xl flex items-center justify-center transition"
-          title="Chat on WhatsApp"
+          href={`tel:${settings?.phone?.replace(/\s|-/g, '')}`}
+          className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-white shadow-2xl flex items-center justify-center transition group relative"
+          title="Call Us Instantly"
+          aria-label="Call Us Instantly"
         >
-          <MessageCircle className="w-6 h-6" />
+          <span className="absolute inset-0 rounded-full bg-amber-400 animate-ping opacity-30"></span>
+          <Phone className="w-6 h-6 relative animate-wiggle" />
         </a>
-        <button
-          onClick={() => setShowEmi(true)}
-          className="w-14 h-14 rounded-full bg-gillco-green hover:bg-gillco-green-dark text-white shadow-2xl flex items-center justify-center transition"
-          title="EMI Calculator"
-          aria-label="Open EMI Calculator"
+        {/* Premium WhatsApp */}
+        <a
+          href={`https://wa.me/${settings?.whatsapp}?text=Hi%20Gillco%20Group%2C%20I%27d%20like%20to%20know%20more.`}
+          target="_blank" rel="noreferrer"
+          className="w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#1EBE57] text-white shadow-[0_8px_24px_rgba(37,211,102,0.45)] hover:shadow-[0_10px_32px_rgba(37,211,102,0.65)] flex items-center justify-center transition-all duration-300 hover:-translate-y-0.5 group relative overflow-hidden"
+          title="Chat on WhatsApp"
+          aria-label="Chat on WhatsApp"
         >
-          <Calculator className="w-6 h-6" />
-        </button>
+          <span className="absolute inset-0 rounded-full ring-2 ring-white/40 group-hover:ring-white/70 animate-pulse"></span>
+          {/* Official WhatsApp glyph SVG */}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-7 h-7 relative drop-shadow" fill="currentColor" aria-hidden="true">
+            <path d="M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.27-.832-2.52-.143-.372-.214-.487-.6-.487-.187 0-.36-.043-.53-.043-.302 0-.53.115-.746.315-.688.645-1.03 1.332-1.044 2.27v.14c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.318.186-.472.286-1.01.315-1.52 0-.445-2.137-1.094-2.593-1.02M16.46 27.1c-5.98 0-10.86-4.88-10.86-10.86 0-5.965 4.88-10.845 10.86-10.845s10.86 4.88 10.86 10.86-4.88 10.845-10.86 10.845zm0-24.11C9.145 2.99 3.197 8.94 3.197 16.24c0 2.335.615 4.58 1.76 6.57L3 29.73l7.085-1.86a13.144 13.144 0 0 0 6.37 1.634h.015c7.3 0 13.247-5.95 13.247-13.247.015-3.54-1.374-6.87-3.87-9.37-2.498-2.512-5.827-3.9-9.38-3.9z"/>
+          </svg>
+        </a>
+        {/* EMI Calculator — moved to /emi-calculator route (hidden from floating stack per request) */}
+        {/* Enquire */}
         <button
           onClick={() => openEnquiry({ type: 'sticky' })}
           className="px-5 h-14 rounded-full gradient-gold text-slate-900 font-semibold shadow-2xl hover:brightness-110 transition flex items-center gap-2"
@@ -1071,23 +1091,45 @@ function ProjectsView({ projects, all, statusFilter, setStatusFilter, categoryFi
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-100 mb-8">
-          <div className="grid md:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-slate-100 mb-8 space-y-4">
+          <div className="grid md:grid-cols-3 gap-3">
             <div className="md:col-span-2 relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or location…" className="w-full pl-9 pr-3 py-2.5 rounded-full border border-slate-200 text-sm focus:border-gillco-green outline-none" />
             </div>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-4 py-2.5 rounded-full border border-slate-200 text-sm focus:border-gillco-green outline-none">
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-4 py-2.5 rounded-full border border-slate-200 text-sm focus:border-gillco-green outline-none bg-white">
               <option value="all">All Status</option>
               <option value="delivered">Delivered</option>
               <option value="ongoing">Ongoing</option>
               <option value="upcoming">Upcoming / Soft Launch</option>
             </select>
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="px-4 py-2.5 rounded-full border border-slate-200 text-sm focus:border-gillco-green outline-none">
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-slate-500 uppercase tracking-widest font-semibold mr-1 shrink-0">Your Requirement:</span>
+            {[
+              { v: 'all', label: 'All', icon: '✨' },
+              { v: 'residential', label: 'Residential', icon: '🏠' },
+              { v: 'commercial', label: 'Commercial', icon: '🏢' },
+              { v: 'industrial', label: 'Industrial', icon: '🏭' },
+            ].map(c => (
+              <button
+                key={c.v}
+                onClick={() => setCategoryFilter(c.v)}
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition border inline-flex items-center gap-1.5 ${
+                  categoryFilter === c.v
+                    ? 'bg-gillco-green text-white border-gillco-green shadow-sm'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-gillco-green hover:text-gillco-green'
+                }`}
+              >
+                <span>{c.icon}</span> {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="hidden">
+            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
               <option value="all">All Categories</option>
               <option value="residential">Residential</option>
               <option value="industrial">Industrial</option>
-              <option value="commercial">Commercial</option>
             </select>
           </div>
           {compare.length > 0 && (
@@ -3339,6 +3381,7 @@ function Footer({ settings, goTo }) {
             <li><button onClick={() => goTo('team')} className="hover:text-gillco-gold">Team</button></li>
             <li><button onClick={() => goTo('news')} className="hover:text-gillco-gold">Spotlight</button></li>
             <li><a href="/blog" className="hover:text-gillco-gold">Blog</a></li>
+            <li><a href="/emi-calculator" className="hover:text-gillco-gold">EMI Calculator</a></li>
             <li><button onClick={() => goTo('contact')} className="hover:text-gillco-gold">Contact</button></li>
           </ul>
         </div>
