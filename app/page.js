@@ -836,6 +836,8 @@ function HomeView({ settings, projects, news, testimonials, onProject, onEnquire
         </div>
       </section>
 
+      <AwardsWall settings={settings} projects={projects} onProject={onProject} />
+
       {/* Featured Project — Meraqui */}
       {featured && (
         <section className="py-20 bg-gillco-cream">
@@ -1080,6 +1082,66 @@ function AwardsStrip({ awards = [], compact = false }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function AwardsWall({ settings, projects = [], onProject }) {
+  const items = [
+    ...((settings?.groupAwards || []).map(a => ({ ...a, project: null }))),
+    ...projects.flatMap(p => (p.awards || []).map(a => ({ ...a, project: p }))),
+  ].filter(a => a?.title || a?.by)
+    .sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0));
+  if (items.length === 0) return null;
+  return (
+    <section className="py-12 md:py-16 bg-gradient-to-b from-white via-gillco-cream/60 to-white" data-testid="awards-wall">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="text-center mb-8">
+          <p className="text-xs tracking-[0.3em] text-gillco-gold uppercase font-semibold">Recognised for Excellence</p>
+          <h2 className="font-serif text-3xl md:text-4xl text-gillco-green mt-2">Awards & Recognition</h2>
+          <div className="w-16 h-0.5 bg-gillco-gold mx-auto mt-3" />
+        </div>
+        <div className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory md:flex-wrap md:justify-center md:overflow-visible">
+          {items.map((a, i) => (
+            <div key={a.id || i} data-testid="awards-wall-item"
+              onClick={() => a.project && onProject?.(a.project)}
+              className={`snap-start shrink-0 w-64 group bg-white rounded-2xl border border-gillco-gold/30 p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(217,169,67,0.25)] hover:border-gillco-gold ${a.project ? 'cursor-pointer' : ''}`}>
+              <div className="w-20 h-20 mx-auto rounded-full bg-gillco-cream border-2 border-gillco-gold/40 flex items-center justify-center overflow-hidden transition group-hover:border-gillco-gold">
+                {a.logo ? <img loading="lazy" src={a.logo} alt={a.by || 'award'} className="w-16 h-16 object-contain" /> : <Award className="w-9 h-9 text-gillco-gold" />}
+              </div>
+              {a.year && <div className="mt-3 text-[11px] font-semibold tracking-widest text-gillco-gold">{a.year}</div>}
+              <div className="mt-1 font-serif text-lg text-gillco-green leading-snug">{a.title || 'Award'}</div>
+              {a.by && <div className="text-xs text-slate-500 mt-1">by {a.by}</div>}
+              {a.project && <div className="mt-3 inline-block text-[11px] px-2.5 py-1 rounded-full bg-gillco-cream text-gillco-green font-medium">{a.project.name}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AwardsListEditor({ value = [], onChange, testid }) {
+  const list = value || [];
+  const upd = (i, patch) => onChange(list.map((x, idx) => idx === i ? { ...x, ...patch } : x));
+  return (
+    <div className="space-y-3" data-testid={testid}>
+      {list.map((a, i) => (
+        <div key={a.id || i} className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50/50">
+          <div className="grid md:grid-cols-3 gap-2">
+            <Field label="Award Title" value={a.title} onChange={v => upd(i, { title: v })} />
+            <Field label="Awarded By (e.g. CREDAI Punjab)" value={a.by} onChange={v => upd(i, { by: v })} />
+            <Field label="Year" value={a.year} onChange={v => upd(i, { year: v })} />
+          </div>
+          <div className="flex items-end gap-3">
+            <div className="flex-1"><MediaUploader label="Awarding Body Logo (optional)" value={a.logo} onChange={v => upd(i, { logo: v })} accept="image/*" hint="Square transparent PNG works best" /></div>
+            <button type="button" onClick={() => onChange(list.filter((_, idx) => idx !== i))} className="px-3 py-2 text-red-600 border border-red-200 rounded-full text-sm inline-flex items-center gap-1"><Trash2 className="w-4 h-4" /> Remove</button>
+          </div>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...list, { id: `a${Date.now()}`, title: '', by: '', year: String(new Date().getFullYear()), logo: '' }])} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2">
+        <Plus className="w-4 h-4" /> Add Award
+      </button>
     </div>
   );
 }
@@ -1613,7 +1675,58 @@ const PROPERTY_TYPES = [
   { id: 'commercial', label: 'Commercial' },
   { id: 'industrial', label: 'Industrial Plot' },
 ];
-const BUDGET_OPTIONS = ['Under ₹50 Lakh', '₹50 Lakh – ₹1 Cr', '₹1 – 1.5 Cr', '₹1.5 – 2 Cr', '₹2 – 3 Cr', '₹3 – 5 Cr', '₹5 Cr+'];
+const BUDGET_OPTIONS = [
+  { label: 'Under ₹50 Lakh', min: 0, max: 0.5 },
+  { label: '₹50 Lakh – ₹1 Cr', min: 0.5, max: 1 },
+  { label: '₹1 – 1.5 Cr', min: 1, max: 1.5 },
+  { label: '₹1.5 – 2 Cr', min: 1.5, max: 2 },
+  { label: '₹2 – 3 Cr', min: 2, max: 3 },
+  { label: '₹3 – 5 Cr', min: 3, max: 5 },
+  { label: '₹5 Cr+', min: 5, max: Infinity },
+];
+
+// "₹85 L – ₹1.5 Cr" -> { start: 0.85, end: 1.5 } in Crore. Returns null for "On Request".
+function parsePriceRangeCr(str) {
+  if (!str) return null;
+  const parts = String(str).split(/[–—-]|\bto\b/i).map(x => x.trim()).filter(Boolean);
+  // a bare number without a unit (e.g. "₹1.5 – 2 Cr") inherits the unit of the other part
+  const unitOf = (x) => (String(x).toLowerCase().match(/(cr|crore|l\b|lac|lakh)/) || [])[1] || '';
+  const fallbackUnit = parts.map(unitOf).find(Boolean) || 'cr';
+  const vals = parts.map(x => parsePriceToINR(unitOf(x) ? x : `${x} ${fallbackUnit}`) / 1e7).filter(v => v > 0);
+  if (vals.length === 0) return null;
+  return { start: Math.min(...vals), end: Math.max(...vals) };
+}
+
+function budgetRangeCr(budget, custom) {
+  if (budget === 'custom') {
+    const c = Number(custom);
+    return c > 0 ? { min: c * 0.75, max: c * 1.1 } : null;
+  }
+  const o = BUDGET_OPTIONS.find(b => b.label === budget);
+  return o ? { min: o.min, max: o.max } : null;
+}
+
+function matchProjects(projects, type, budget, custom) {
+  const range = budgetRangeCr(budget, custom);
+  if (!type && !range) return [];
+  const scored = [];
+  for (const p of projects || []) {
+    if (!projectMatchesType(p, type)) continue;
+    const pr = parsePriceRangeCr(p.priceRange);
+    if (range) {
+      if (!pr) { scored.push({ p, score: 1, fit: 'Price on request' }); continue; }
+      if (pr.start > range.max || pr.end < range.min) continue; // no overlap
+      const inside = pr.start >= range.min && pr.start <= range.max;
+      scored.push({ p, score: inside ? 3 : 2, fit: inside ? 'Within budget' : 'Options in your budget' });
+    } else {
+      scored.push({ p, score: 2, fit: '' });
+    }
+  }
+  const statusRank = { upcoming: 0, ongoing: 1, delivered: 2 };
+  return scored
+    .sort((a, b) => b.score - a.score || (statusRank[a.p.status] ?? 3) - (statusRank[b.p.status] ?? 3))
+    .slice(0, 3);
+}
 
 function projectMatchesType(p, type) {
   if (!type) return true;
@@ -1642,6 +1755,8 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
     ? (form.budgetCustom ? `₹${form.budgetCustom} Cr` : '')
     : form.budget;
   const propertyTypeLabel = PROPERTY_TYPES.find(t => t.id === form.propertyType)?.label || '';
+  const matches = useMemo(() => matchProjects(projects, form.propertyType, form.budget, form.budgetCustom), [projects, form.propertyType, form.budget, form.budgetCustom]);
+  const showMatches = !!(form.propertyType || form.budget) && !(form.budget === 'custom' && !(Number(form.budgetCustom) > 0));
   const [submitting, setSubmitting] = useState(false);
 
   const utm = useMemo(() => {
@@ -1777,7 +1892,7 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
                 <label className="text-xs text-slate-500 uppercase tracking-wider">Budget (₹ Cr)</label>
                 <select data-testid="enquiry-budget" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none bg-white">
                   <option value="">Select budget</option>
-                  {BUDGET_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                  {BUDGET_OPTIONS.map(b => <option key={b.label} value={b.label}>{b.label}</option>)}
                   <option value="custom">Custom amount…</option>
                 </select>
               </div>
@@ -1791,6 +1906,42 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
                   <span className="px-3 py-2.5 bg-gillco-cream text-gillco-green text-sm font-semibold">Crore</span>
                 </div>
                 {Number(form.budgetCustom) > 0 && <p className="text-[11px] text-slate-500 mt-1">≈ ₹{(Number(form.budgetCustom) * 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })} Lakh</p>}
+              </div>
+            )}
+            {showMatches && (
+              <div data-testid="enquiry-matches" className="rounded-2xl border border-gillco-gold/40 bg-gradient-to-br from-gillco-cream to-white p-3">
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gillco-green mb-2">
+                  <Sparkles className="w-3.5 h-3.5 text-gillco-gold" />
+                  {matches.length ? `${matches.length} matching project${matches.length > 1 ? 's' : ''} for you` : 'Matching projects'}
+                </div>
+                {matches.length === 0 ? (
+                  <p className="text-xs text-slate-600">No exact match right now — submit anyway and our advisor will share the closest options and upcoming launches.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {matches.map(({ p, fit }) => {
+                      const active = form.projectId === p.id;
+                      return (
+                        <button type="button" key={p.id} data-testid="enquiry-match-item" onClick={() => setForm({ ...form, projectId: active ? '' : p.id })}
+                          className={`w-full flex items-center gap-3 text-left rounded-xl border p-2 transition ${active ? 'border-gillco-green bg-emerald-50 ring-2 ring-gillco-green/30' : 'border-slate-200 bg-white hover:border-gillco-gold hover:shadow-md'}`}>
+                          <img src={safeImg(p.heroImage)} alt={p.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              {p.logo && <img src={safeImg(p.logo)} alt="" className="w-5 h-5 object-contain" />}
+                              <span className="font-semibold text-sm text-slate-800 truncate">{p.name}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">{p.location}</div>
+                            <div className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-gillco-green">{p.priceRange || 'Price on request'}</span>
+                              {STATUS_MAP[p.status] && <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${STATUS_MAP[p.status].color}`}>{STATUS_MAP[p.status].label}</span>}
+                              {fit && <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-900">{fit}</span>}
+                            </div>
+                          </div>
+                          <span className={`text-[11px] font-semibold shrink-0 ${active ? 'text-gillco-green' : 'text-slate-400'}`}>{active ? '✓ Selected' : 'Select'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
             <div>
@@ -3288,6 +3439,10 @@ function SettingsEditor({ settings, onSave }) {
       <Field label="Manager Email (gets the automatic escalation email)" value={s.leadOverflow?.managerEmail} onChange={v => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), managerEmail: v } })} />
 
       <NotificationSettings s={s} setS={setS} />
+
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Group Awards (Home page Awards Wall)</h4>
+      <p className="text-xs text-slate-500 -mt-2">Awards won by Gillco Group as a company. Awards added inside each project also appear on the wall automatically. The section stays hidden until at least one award exists.</p>
+      <AwardsListEditor testid="group-awards-editor" value={s.groupAwards} onChange={v => setS({ ...s, groupAwards: v })} />
 
       <h4 className="font-serif text-xl text-gillco-green mt-6">Google Analytics (GA4)</h4>
       <p className="text-xs text-slate-500 -mt-2">Paste your Measurement ID to start tracking visits, enquiries, call and WhatsApp clicks. Leave empty to turn tracking off.</p>
