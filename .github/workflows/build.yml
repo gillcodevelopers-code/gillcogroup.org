@@ -11,14 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Uses the Yarn version pinned in package.json "packageManager" (1.22.22)
       - run: corepack enable
 
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: yarn
+          # No `cache: yarn` - it fails the job when yarn.lock is not in the repo.
 
-      - run: yarn install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          if [ -f yarn.lock ]; then
+            yarn install --frozen-lockfile --non-interactive
+          else
+            echo "::warning::yarn.lock not found in repo - installing from package.json (resolutions still apply)"
+            yarn install --non-interactive
+          fi
 
       # Build does not need the database (pages load data at runtime),
       # so no MongoDB secrets are stored in GitHub.
