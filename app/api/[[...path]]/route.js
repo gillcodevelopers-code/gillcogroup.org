@@ -10,13 +10,25 @@ let clientPromise;
 let db;
 let seeded = false;
 
+// Clean common copy-paste mistakes in env values (quotes, spaces, "DB_NAME=" prefix)
+function cleanEnv(v) {
+  return String(v || '').trim().replace(/^[A-Z_]+=/, '').replace(/^["']|["']$/g, '').trim();
+}
+
 async function connectToMongo() {
   if (!clientPromise) {
-    const c = new MongoClient(process.env.MONGO_URL);
+    const url = cleanEnv(process.env.MONGO_URL);
+    const dbName = cleanEnv(process.env.DB_NAME);
+    if (!url) throw new Error('MONGO_URL is not set in the hosting environment variables');
+    if (!dbName) throw new Error('DB_NAME is not set in the hosting environment variables');
+    if (/[./\\\s"$*<>:|?]/.test(dbName)) {
+      throw new Error('DB_NAME must be only the database name (e.g. gillco) - not the cluster address or connection string');
+    }
+    const c = new MongoClient(url);
     clientPromise = c.connect().then((connected) => {
-      db = connected.db(process.env.DB_NAME);
+      db = connected.db(dbName);
       return connected;
-    });
+    }).catch((err) => { clientPromise = null; throw err; });
   }
   await clientPromise;
   return db;

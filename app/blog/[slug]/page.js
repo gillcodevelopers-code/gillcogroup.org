@@ -9,7 +9,7 @@ async function getPost(slug) {
     const { MongoClient } = await import('mongodb');
     const client = new MongoClient(process.env.MONGO_URL);
     await client.connect();
-    const db = client.db(process.env.DB_NAME || 'gillco');
+    const db = client.db(String(process.env.DB_NAME || 'gillco').trim().replace(/^["']|["']$/g, ''));
     const item = await db.collection('posts').findOne({ slug });
     await client.close();
     if (!item) return null;

@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # Uses the Yarn version pinned in package.json "packageManager" (1.22.22)
+      - run: corepack enable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          # No `cache: yarn` - it fails the job when yarn.lock is not in the repo.
+
+      - name: Install dependencies
+        run: |
+          if [ -f yarn.lock ]; then
+            yarn install --frozen-lockfile --non-interactive
+          else
+            echo "::warning::yarn.lock not found in repo - installing from package.json (resolutions still apply)"
+            yarn install --non-interactive
+          fi
+
+      # Build does not need the database (pages load data at runtime),
+      # so no MongoDB secrets are stored in GitHub.
+      - run: yarn build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Security audit (fails only on critical)
+        run: |
+          yarn audit --level critical --groups dependencies || code=$?
+          # yarn audit exit code is a bitmask: 16 = critical
+          if [ $(( ${code:-0} & 16 )) -ne 0 ]; then echo "Critical vulnerabilities found"; exit 1; fi
