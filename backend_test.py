@@ -1,440 +1,342 @@
 #!/usr/bin/env python3
 """
-Backend API Testing for Gillco Group CMS - Phase 2 Lead Automation Features
-Tests new endpoints: enquiries with email notifications, cron escalation, notifications status/test, settings persistence, project awards
+Regression test after dependency upgrades (next 15.5.18 -> 15.5.28, jspdf 4.2.1, axios 1.20.0, postcss 8.5.30)
+Tests all main backend endpoints and frontend routes to ensure no breaking changes.
 """
 
 import requests
 import json
-import time
-from datetime import datetime
+import io
+from PIL import Image
 
-# Read base URL from .env
-def get_base_url():
+# Base URLs
+BASE_URL = "http://localhost:3000"
+API_URL = f"{BASE_URL}/api"
+
+# Admin password
+ADMIN_PASSWORD = "gillco2025"
+
+# Test results tracking
+test_results = []
+test_enquiry_id = None
+uploaded_file_url = None
+
+def log_test(test_name, passed, message=""):
+    """Log test result"""
+    status = "✅ PASS" if passed else "❌ FAIL"
+    result = f"{status}: {test_name}"
+    if message:
+        result += f" - {message}"
+    print(result)
+    test_results.append({"name": test_name, "passed": passed, "message": message})
+    return passed
+
+def test_health():
+    """Test GET /api/health"""
     try:
-        with open('/app/.env', 'r') as f:
-            for line in f:
-                if line.startswith('NEXT_PUBLIC_BASE_URL='):
-                    return line.split('=', 1)[1].strip() + '/api'
-    except:
-        pass
-    return 'http://localhost:3000/api'
-
-BASE_URL = get_base_url()
-print(f"🔗 Testing against: {BASE_URL}\n")
-
-# Test counters
-passed = 0
-failed = 0
-test_data_cleanup = []
-
-def test(name, fn):
-    global passed, failed
-    try:
-        print(f"▶ {name}")
-        fn()
-        print(f"  ✅ PASS\n")
-        passed += 1
-    except AssertionError as e:
-        print(f"  ❌ FAIL: {e}\n")
-        failed += 1
+        response = requests.get(f"{API_URL}/health", timeout=10)
+        passed = response.status_code == 200 and response.json().get("ok") == True and response.json().get("db") == "up"
+        log_test("GET /api/health", passed, f"Status: {response.status_code}, Response: {response.json()}")
+        return passed
     except Exception as e:
-        print(f"  ❌ ERROR: {e}\n")
-        failed += 1
+        log_test("GET /api/health", False, f"Error: {str(e)}")
+        return False
 
-def assert_eq(actual, expected, msg=""):
-    if actual != expected:
-        raise AssertionError(f"{msg} Expected {expected}, got {actual}")
-
-def assert_in(item, container, msg=""):
-    if item not in container:
-        raise AssertionError(f"{msg} Expected {item} in {container}")
-
-def assert_true(condition, msg=""):
-    if not condition:
-        raise AssertionError(msg or "Expected True")
-
-def assert_false(condition, msg=""):
-    if condition:
-        raise AssertionError(msg or "Expected False")
-
-# ==================== TEST 1: POST /api/enquiries with email notification ====================
-def test_enquiry_creation_success():
-    """POST /api/enquiries with valid data should return 200 fast with id, no _id"""
-    payload = {
-        "name": "Rajesh Kumar",
-        "phone": "9876543210",
-        "email": "rajesh.kumar@example.com",
-        "projectName": "Gillco Meraqui",
-        "consent": True,
-        "message": "Interested in 3 BHK unit"
-    }
-    start = time.time()
-    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
-    elapsed = time.time() - start
-    
-    assert_eq(r.status_code, 200, "Status code should be 200")
-    data = r.json()
-    assert_true('id' in data, "Response should contain 'id'")
-    assert_false('_id' in data, "Response should NOT contain MongoDB '_id'")
-    assert_eq(data['name'], payload['name'], "Name should match")
-    assert_eq(data['phone'], payload['phone'], "Phone should match")
-    assert_eq(data['email'], payload['email'], "Email should match")
-    assert_eq(data['projectName'], payload['projectName'], "Project name should match")
-    assert_eq(data['consent'], True, "Consent should be True")
-    assert_true(elapsed < 3.0, f"Response should be fast (took {elapsed:.2f}s)")
-    
-    # Store for cleanup
-    test_data_cleanup.append(('enquiry', data['id']))
-    print(f"    Created enquiry ID: {data['id']} in {elapsed:.2f}s")
-
-def test_enquiry_missing_phone():
-    """POST /api/enquiries without phone should return 400"""
-    payload = {
-        "name": "Test User",
-        "email": "test@example.com",
-        "projectName": "Gillco Parkhills",
-        "consent": True
-    }
-    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
-    assert_eq(r.status_code, 400, "Status code should be 400 for missing phone")
-    data = r.json()
-    assert_true('error' in data, "Response should contain error message")
-    print(f"    Error message: {data.get('error')}")
-
-def test_enquiry_no_crash_without_resend():
-    """Verify server logs show no crash when RESEND_API_KEY is not set"""
-    # Check supervisor logs for nextjs
-    import subprocess
+def test_projects():
+    """Test GET /api/projects"""
     try:
-        result = subprocess.run(
-            ['tail', '-n', '50', '/var/log/supervisor/nextjs.out.log'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        logs = result.stdout
-        
-        # Look for crash indicators
-        crash_indicators = ['ECONNREFUSED', 'Cannot read property', 'TypeError', 'ReferenceError', 'crashed']
-        has_crash = any(indicator in logs for indicator in crash_indicators)
-        
-        assert_false(has_crash, "Server logs should not show crashes related to email")
-        print(f"    Server logs clean - no crashes detected")
+        response = requests.get(f"{API_URL}/projects", timeout=10)
+        passed = response.status_code == 200 and isinstance(response.json(), list) and len(response.json()) > 0
+        log_test("GET /api/projects", passed, f"Status: {response.status_code}, Count: {len(response.json()) if passed else 0}")
+        return response.json() if passed else []
     except Exception as e:
-        print(f"    Warning: Could not check logs - {e}")
+        log_test("GET /api/projects", False, f"Error: {str(e)}")
+        return []
 
-# ==================== TEST 2: GET /api/cron/escalate ====================
-def test_cron_escalate_without_email():
-    """GET /api/cron/escalate should return 200 with skipped message when email not configured"""
-    r = requests.get(f"{BASE_URL}/cron/escalate", timeout=10)
-    assert_eq(r.status_code, 200, "Status code should be 200")
-    data = r.json()
-    assert_true(data.get('ok'), "Response should have ok:true")
-    assert_eq(data.get('skipped'), 'email not configured', "Should skip with 'email not configured' message")
-    print(f"    Response: {json.dumps(data, indent=2)}")
+def test_project_by_slug(slug):
+    """Test GET /api/projects/<slug>"""
+    try:
+        response = requests.get(f"{API_URL}/projects/{slug}", timeout=10)
+        passed = response.status_code == 200 and response.json().get("slug") == slug
+        log_test(f"GET /api/projects/{slug}", passed, f"Status: {response.status_code}, Name: {response.json().get('name', 'N/A') if passed else 'N/A'}")
+        return passed
+    except Exception as e:
+        log_test(f"GET /api/projects/{slug}", False, f"Error: {str(e)}")
+        return False
 
-def test_cron_escalate_no_auto_escalation():
-    """After inserting enquiry, confirm no enquiry got escalated:true by auto sweep"""
-    # Create a test enquiry
-    payload = {
-        "name": "Priya Sharma",
-        "phone": "9123456789",
-        "email": "priya.sharma@example.com",
-        "projectName": "Gillco Industrial Park",
-        "consent": True
-    }
-    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
-    assert_eq(r.status_code, 200, "Enquiry creation should succeed")
-    enquiry_id = r.json()['id']
-    test_data_cleanup.append(('enquiry', enquiry_id))
-    
-    # Wait a moment
-    time.sleep(1)
-    
-    # Run escalation cron
-    r = requests.get(f"{BASE_URL}/cron/escalate", timeout=10)
-    assert_eq(r.status_code, 200, "Cron should return 200")
-    
-    # Fetch all enquiries and verify none have escalatedBy='auto'
-    r = requests.get(f"{BASE_URL}/enquiries", timeout=10)
-    assert_eq(r.status_code, 200, "GET enquiries should succeed")
-    enquiries = r.json()
-    
-    auto_escalated = [e for e in enquiries if e.get('escalatedBy') == 'auto']
-    assert_eq(len(auto_escalated), 0, "No enquiries should be auto-escalated when email not configured")
-    print(f"    Verified: No auto-escalated enquiries found (total enquiries: {len(enquiries)})")
+def test_settings():
+    """Test GET /api/settings"""
+    try:
+        response = requests.get(f"{API_URL}/settings", timeout=10)
+        passed = response.status_code == 200 and response.json().get("brandName") is not None
+        log_test("GET /api/settings", passed, f"Status: {response.status_code}, Brand: {response.json().get('brandName', 'N/A') if passed else 'N/A'}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/settings", False, f"Error: {str(e)}")
+        return False
 
-# ==================== TEST 3: GET /api/notifications/status ====================
-def test_notifications_status():
-    """GET /api/notifications/status should show emailConfigured:false and leadRecipients array"""
-    r = requests.get(f"{BASE_URL}/notifications/status", timeout=10)
-    assert_eq(r.status_code, 200, "Status code should be 200")
-    data = r.json()
-    
-    assert_false(data.get('emailConfigured'), "emailConfigured should be false (no RESEND_API_KEY)")
-    assert_true('leadRecipients' in data, "Response should contain leadRecipients")
-    assert_true(isinstance(data['leadRecipients'], list), "leadRecipients should be an array")
-    print(f"    emailConfigured: {data.get('emailConfigured')}")
-    print(f"    leadRecipients: {data.get('leadRecipients')}")
+def test_news():
+    """Test GET /api/news"""
+    try:
+        response = requests.get(f"{API_URL}/news", timeout=10)
+        passed = response.status_code == 200 and isinstance(response.json(), list)
+        log_test("GET /api/news", passed, f"Status: {response.status_code}, Count: {len(response.json()) if passed else 0}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/news", False, f"Error: {str(e)}")
+        return False
 
-def test_settings_notifications_update():
-    """PUT /api/settings with notifications config should update leadRecipients"""
-    # First, get current settings to restore later
-    r = requests.get(f"{BASE_URL}/settings", timeout=10)
-    assert_eq(r.status_code, 200, "GET settings should succeed")
-    original_settings = r.json()
-    
-    # Update settings with notifications config
-    updated_settings = {**original_settings}
-    updated_settings['notifications'] = {
-        'emailEnabled': True,
-        'leadEmails': 'a@x.com, b@y.com'
-    }
-    
-    r = requests.put(f"{BASE_URL}/settings", json=updated_settings, timeout=10)
-    assert_eq(r.status_code, 200, "PUT settings should succeed")
-    
-    # Check notifications status
-    r = requests.get(f"{BASE_URL}/notifications/status", timeout=10)
-    assert_eq(r.status_code, 200, "GET notifications/status should succeed")
-    data = r.json()
-    
-    recipients = data.get('leadRecipients', [])
-    assert_in('a@x.com', recipients, "leadRecipients should contain a@x.com")
-    assert_in('b@y.com', recipients, "leadRecipients should contain b@y.com")
-    print(f"    Updated leadRecipients: {recipients}")
-    
-    # Restore original settings
-    r = requests.put(f"{BASE_URL}/settings", json=original_settings, timeout=10)
-    assert_eq(r.status_code, 200, "Restore settings should succeed")
-    print(f"    Restored original settings")
+def test_testimonials():
+    """Test GET /api/testimonials"""
+    try:
+        response = requests.get(f"{API_URL}/testimonials", timeout=10)
+        passed = response.status_code == 200 and isinstance(response.json(), list)
+        log_test("GET /api/testimonials", passed, f"Status: {response.status_code}, Count: {len(response.json()) if passed else 0}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/testimonials", False, f"Error: {str(e)}")
+        return False
 
-# ==================== TEST 4: POST /api/notifications/test ====================
-def test_notifications_test_without_resend():
-    """POST /api/notifications/test should return 400 with error message when RESEND_API_KEY not set"""
-    r = requests.post(f"{BASE_URL}/notifications/test", json={}, timeout=10)
-    assert_eq(r.status_code, 400, "Status code should be 400")
-    data = r.json()
-    assert_true('error' in data, "Response should contain error message")
-    assert_true('RESEND_API_KEY' in data['error'] or 'not set up' in data['error'], 
-                "Error should mention RESEND_API_KEY or email not set up")
-    print(f"    Error message: {data.get('error')}")
+def test_posts():
+    """Test GET /api/posts (if exists)"""
+    try:
+        response = requests.get(f"{API_URL}/posts", timeout=10)
+        passed = response.status_code == 200 and isinstance(response.json(), list)
+        log_test("GET /api/posts", passed, f"Status: {response.status_code}, Count: {len(response.json()) if passed else 0}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/posts", False, f"Error: {str(e)}")
+        return False
 
-# ==================== TEST 5: PUT /api/settings with ga4Id and leadOverflow.managerEmail ====================
-def test_settings_ga4_and_manager_email():
-    """PUT /api/settings with ga4Id and leadOverflow.managerEmail should persist"""
-    # Get current settings
-    r = requests.get(f"{BASE_URL}/settings", timeout=10)
-    assert_eq(r.status_code, 200, "GET settings should succeed")
-    original_settings = r.json()
-    
-    # Update with ga4Id and managerEmail
-    updated_settings = {**original_settings}
-    updated_settings['ga4Id'] = 'G-TEST1234'
-    if 'leadOverflow' not in updated_settings:
-        updated_settings['leadOverflow'] = {}
-    updated_settings['leadOverflow']['managerEmail'] = 'manager@gillcogroup.org'
-    
-    r = requests.put(f"{BASE_URL}/settings", json=updated_settings, timeout=10)
-    assert_eq(r.status_code, 200, "PUT settings should succeed")
-    
-    # Verify persistence
-    r = requests.get(f"{BASE_URL}/settings", timeout=10)
-    assert_eq(r.status_code, 200, "GET settings should succeed")
-    data = r.json()
-    
-    assert_eq(data.get('ga4Id'), 'G-TEST1234', "ga4Id should be persisted")
-    assert_eq(data.get('leadOverflow', {}).get('managerEmail'), 'manager@gillcogroup.org', 
-              "leadOverflow.managerEmail should be persisted")
-    print(f"    ga4Id: {data.get('ga4Id')}")
-    print(f"    leadOverflow.managerEmail: {data.get('leadOverflow', {}).get('managerEmail')}")
-    
-    # Restore original settings
-    r = requests.put(f"{BASE_URL}/settings", json=original_settings, timeout=10)
-    assert_eq(r.status_code, 200, "Restore settings should succeed")
-    print(f"    Restored original settings")
+def test_admin_login_success():
+    """Test POST /api/admin/login with correct password"""
+    try:
+        response = requests.post(f"{API_URL}/admin/login", json={"password": ADMIN_PASSWORD}, timeout=10)
+        passed = response.status_code == 200 and response.json().get("ok") == True
+        log_test("POST /api/admin/login (correct password)", passed, f"Status: {response.status_code}, ok: {response.json().get('ok', False)}")
+        return passed
+    except Exception as e:
+        log_test("POST /api/admin/login (correct password)", False, f"Error: {str(e)}")
+        return False
 
-# ==================== TEST 6: PUT /api/projects/:id with awards ====================
-def test_project_awards():
-    """PUT /api/projects/:id with awards array should persist and be retrievable"""
-    # Get existing projects
-    r = requests.get(f"{BASE_URL}/projects", timeout=10)
-    assert_eq(r.status_code, 200, "GET projects should succeed")
-    projects = r.json()
-    assert_true(len(projects) > 0, "Should have at least one project")
-    
-    # Pick first project
-    project = projects[0]
-    project_id = project['id']
-    original_project = {**project}
-    
-    # Add awards
-    updated_project = {**project}
-    updated_project['awards'] = [
-        {
-            'id': 'a1',
-            'title': 'Best Project',
-            'by': 'CREDAI',
-            'year': '2025',
-            'logo': ''
+def test_admin_login_fail():
+    """Test POST /api/admin/login with wrong password"""
+    try:
+        response = requests.post(f"{API_URL}/admin/login", json={"password": "wrongpassword"}, timeout=10)
+        passed = response.status_code == 401 and response.json().get("ok") == False
+        log_test("POST /api/admin/login (wrong password)", passed, f"Status: {response.status_code}, ok: {response.json().get('ok', True)}")
+        return passed
+    except Exception as e:
+        log_test("POST /api/admin/login (wrong password)", False, f"Error: {str(e)}")
+        return False
+
+def test_post_enquiry():
+    """Test POST /api/enquiries"""
+    global test_enquiry_id
+    try:
+        payload = {
+            "name": "Regression Test",
+            "phone": "9999999999",
+            "propertyType": "Residential",
+            "budget": "1-1.5 Cr",
+            "consent": True
         }
+        response = requests.post(f"{API_URL}/enquiries", json=payload, timeout=10)
+        passed = response.status_code == 200 and response.json().get("id") is not None
+        if passed:
+            test_enquiry_id = response.json().get("id")
+        log_test("POST /api/enquiries", passed, f"Status: {response.status_code}, ID: {test_enquiry_id if passed else 'N/A'}")
+        return passed
+    except Exception as e:
+        log_test("POST /api/enquiries", False, f"Error: {str(e)}")
+        return False
+
+def test_get_enquiries():
+    """Test GET /api/enquiries and verify posted enquiry"""
+    try:
+        response = requests.get(f"{API_URL}/enquiries", timeout=10)
+        passed = response.status_code == 200 and isinstance(response.json(), list)
+        if passed and test_enquiry_id:
+            enquiries = response.json()
+            found = any(e.get("id") == test_enquiry_id for e in enquiries)
+            passed = found
+            log_test("GET /api/enquiries (verify posted)", passed, f"Status: {response.status_code}, Found test enquiry: {found}")
+        else:
+            log_test("GET /api/enquiries", passed, f"Status: {response.status_code}, Count: {len(response.json()) if passed else 0}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/enquiries", False, f"Error: {str(e)}")
+        return False
+
+def test_upload_and_retrieve():
+    """Test POST /api/upload and GET /api/media/<file>"""
+    global uploaded_file_url
+    try:
+        # Create a small PNG image (10x10 red square)
+        img = Image.new('RGB', (10, 10), color='red')
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='PNG')
+        img_bytes.seek(0)
+        
+        # Upload
+        files = {'file': ('test.png', img_bytes, 'image/png')}
+        response = requests.post(f"{API_URL}/upload", files=files, timeout=10)
+        upload_passed = response.status_code == 200 and response.json().get("url") is not None
+        
+        if upload_passed:
+            uploaded_file_url = response.json().get("url")
+            log_test("POST /api/upload", True, f"Status: {response.status_code}, URL: {uploaded_file_url}")
+            
+            # Retrieve the uploaded file
+            file_url = f"{BASE_URL}{uploaded_file_url}" if uploaded_file_url.startswith("/api") else uploaded_file_url
+            retrieve_response = requests.get(file_url, timeout=10)
+            retrieve_passed = retrieve_response.status_code == 200 and len(retrieve_response.content) > 0
+            log_test(f"GET {uploaded_file_url}", retrieve_passed, f"Status: {retrieve_response.status_code}, Size: {len(retrieve_response.content)} bytes")
+            return upload_passed and retrieve_passed
+        else:
+            log_test("POST /api/upload", False, f"Status: {response.status_code}, Response: {response.text[:200]}")
+            return False
+    except Exception as e:
+        log_test("POST /api/upload", False, f"Error: {str(e)}")
+        return False
+
+def test_admin_backup():
+    """Test GET /api/admin/backup"""
+    try:
+        headers = {"x-admin-password": ADMIN_PASSWORD}
+        response = requests.get(f"{API_URL}/admin/backup", headers=headers, timeout=30)
+        passed = response.status_code == 200 and response.json().get("app") == "gillco-group"
+        log_test("GET /api/admin/backup", passed, f"Status: {response.status_code}, Collections: {len(response.json().get('collections', {})) if passed else 0}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/admin/backup", False, f"Error: {str(e)}")
+        return False
+
+def test_cron_escalate():
+    """Test GET /api/cron/escalate"""
+    try:
+        response = requests.get(f"{API_URL}/cron/escalate", timeout=10)
+        passed = response.status_code == 200 and response.json().get("ok") == True
+        log_test("GET /api/cron/escalate", passed, f"Status: {response.status_code}, Response: {response.json()}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/cron/escalate", False, f"Error: {str(e)}")
+        return False
+
+def test_notifications_status():
+    """Test GET /api/notifications/status"""
+    try:
+        response = requests.get(f"{API_URL}/notifications/status", timeout=10)
+        passed = response.status_code == 200 and "emailConfigured" in response.json()
+        log_test("GET /api/notifications/status", passed, f"Status: {response.status_code}, Email configured: {response.json().get('emailConfigured', 'N/A')}")
+        return passed
+    except Exception as e:
+        log_test("GET /api/notifications/status", False, f"Error: {str(e)}")
+        return False
+
+def test_delete_enquiry():
+    """Test DELETE /api/enquiries/<id> if endpoint exists"""
+    if not test_enquiry_id:
+        log_test("DELETE /api/enquiries/<id>", False, "No test enquiry ID to delete")
+        return False
+    
+    try:
+        response = requests.delete(f"{API_URL}/enquiries/{test_enquiry_id}", timeout=10)
+        if response.status_code == 404:
+            log_test("DELETE /api/enquiries/<id>", False, "DELETE endpoint not implemented (404)")
+            return False
+        passed = response.status_code == 200
+        log_test("DELETE /api/enquiries/<id>", passed, f"Status: {response.status_code}")
+        return passed
+    except Exception as e:
+        log_test("DELETE /api/enquiries/<id>", False, f"Error: {str(e)}")
+        return False
+
+def test_frontend_routes():
+    """Test frontend routes"""
+    routes = [
+        "/",
+        "/blog",
+        "/emi-calculator",
+        "/sitemap.xml",
+        "/robots.txt"
     ]
     
-    r = requests.put(f"{BASE_URL}/projects/{project_id}", json=updated_project, timeout=10)
-    assert_eq(r.status_code, 200, "PUT project should succeed")
+    all_passed = True
+    for route in routes:
+        try:
+            response = requests.get(f"{BASE_URL}{route}", timeout=10)
+            passed = response.status_code == 200
+            log_test(f"GET {route}", passed, f"Status: {response.status_code}")
+            all_passed = all_passed and passed
+        except Exception as e:
+            log_test(f"GET {route}", False, f"Error: {str(e)}")
+            all_passed = False
     
-    # Verify awards in GET
-    r = requests.get(f"{BASE_URL}/projects/{project_id}", timeout=10)
-    assert_eq(r.status_code, 200, "GET project should succeed")
-    data = r.json()
-    
-    assert_true('awards' in data, "Project should have awards field")
-    assert_eq(len(data['awards']), 1, "Should have 1 award")
-    assert_eq(data['awards'][0]['id'], 'a1', "Award id should match")
-    assert_eq(data['awards'][0]['title'], 'Best Project', "Award title should match")
-    assert_eq(data['awards'][0]['by'], 'CREDAI', "Award by should match")
-    assert_eq(data['awards'][0]['year'], '2025', "Award year should match")
-    print(f"    Project {project_id} awards: {data['awards']}")
-    
-    # Restore original project (remove awards)
-    r = requests.put(f"{BASE_URL}/projects/{project_id}", json=original_project, timeout=10)
-    assert_eq(r.status_code, 200, "Restore project should succeed")
-    print(f"    Restored original project without awards")
+    return all_passed
 
-# ==================== TEST 7: Regression Tests ====================
-def test_regression_get_projects():
-    """GET /api/projects should still work"""
-    r = requests.get(f"{BASE_URL}/projects", timeout=10)
-    assert_eq(r.status_code, 200, "GET projects should return 200")
-    data = r.json()
-    assert_true(isinstance(data, list), "Response should be an array")
-    assert_true(len(data) >= 8, "Should have at least 8 seeded projects")
-    print(f"    Found {len(data)} projects")
-
-def test_regression_get_settings():
-    """GET /api/settings should still work"""
-    r = requests.get(f"{BASE_URL}/settings", timeout=10)
-    assert_eq(r.status_code, 200, "GET settings should return 200")
-    data = r.json()
-    assert_eq(data.get('brandName'), 'Gillco Group', "Brand name should be Gillco Group")
-    assert_true('phone' in data, "Settings should have phone")
-    assert_true('email' in data, "Settings should have email")
-    print(f"    Settings: brandName={data.get('brandName')}, phone={data.get('phone')}")
-
-def test_regression_get_testimonials():
-    """GET /api/testimonials should still work"""
-    r = requests.get(f"{BASE_URL}/testimonials", timeout=10)
-    assert_eq(r.status_code, 200, "GET testimonials should return 200")
-    data = r.json()
-    assert_true(isinstance(data, list), "Response should be an array")
-    print(f"    Found {len(data)} testimonials")
-
-def test_regression_enquiry_claim():
-    """POST /api/enquiries/:id/claim should still work"""
-    # Create a test enquiry first
-    payload = {
-        "name": "Amit Verma",
-        "phone": "9988776655",
-        "email": "amit.verma@example.com",
-        "projectName": "Gillco Towers",
-        "consent": True
-    }
-    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
-    assert_eq(r.status_code, 200, "Enquiry creation should succeed")
-    enquiry_id = r.json()['id']
-    test_data_cleanup.append(('enquiry', enquiry_id))
-    
-    # Claim the enquiry
-    r = requests.post(f"{BASE_URL}/enquiries/{enquiry_id}/claim", json={"by": "test-agent"}, timeout=10)
-    assert_eq(r.status_code, 200, "Claim should return 200")
-    data = r.json()
-    assert_eq(data.get('claimed'), True, "Enquiry should be marked as claimed")
-    assert_eq(data.get('claimedBy'), 'test-agent', "claimedBy should match")
-    assert_true('claimedAt' in data, "Should have claimedAt timestamp")
-    print(f"    Claimed enquiry {enquiry_id} by test-agent")
-
-def test_regression_enquiry_escalate():
-    """POST /api/enquiries/:id/escalate should still work"""
-    # Create a test enquiry first
-    payload = {
-        "name": "Neha Gupta",
-        "phone": "9876512345",
-        "email": "neha.gupta@example.com",
-        "projectName": "Gillco Heights",
-        "consent": True
-    }
-    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
-    assert_eq(r.status_code, 200, "Enquiry creation should succeed")
-    enquiry_id = r.json()['id']
-    test_data_cleanup.append(('enquiry', enquiry_id))
-    
-    # Escalate the enquiry
-    r = requests.post(f"{BASE_URL}/enquiries/{enquiry_id}/escalate", json={}, timeout=10)
-    assert_eq(r.status_code, 200, "Escalate should return 200")
-    data = r.json()
-    assert_eq(data.get('escalated'), True, "Enquiry should be marked as escalated")
-    assert_true('escalatedAt' in data, "Should have escalatedAt timestamp")
-    print(f"    Escalated enquiry {enquiry_id}")
-
-# ==================== RUN ALL TESTS ====================
-if __name__ == '__main__':
+def main():
+    """Run all regression tests"""
     print("=" * 80)
-    print("BACKEND API TESTING - PHASE 2 LEAD AUTOMATION FEATURES")
+    print("REGRESSION TEST SUITE - Dependency Upgrades")
+    print("next 15.5.18 -> 15.5.28, jspdf 4.2.1, axios 1.20.0, postcss 8.5.30")
     print("=" * 80)
     print()
     
-    # Test 1: POST /api/enquiries
-    print("📋 TEST GROUP 1: POST /api/enquiries with email notification")
-    print("-" * 80)
-    test("T1.1: POST /api/enquiries with valid data returns 200 fast with id, no _id", test_enquiry_creation_success)
-    test("T1.2: POST /api/enquiries without phone returns 400", test_enquiry_missing_phone)
-    test("T1.3: Server logs show no crash without RESEND_API_KEY", test_enquiry_no_crash_without_resend)
+    print("--- BACKEND API TESTS ---")
+    test_health()
+    projects = test_projects()
+    if projects and len(projects) > 0:
+        first_project_slug = projects[0].get("slug", projects[0].get("id"))
+        test_project_by_slug(first_project_slug)
+    test_settings()
+    test_news()
+    test_testimonials()
+    test_posts()
+    test_admin_login_success()
+    test_admin_login_fail()
+    test_post_enquiry()
+    test_get_enquiries()
+    test_upload_and_retrieve()
+    test_admin_backup()
+    test_cron_escalate()
+    test_notifications_status()
     
-    # Test 2: GET /api/cron/escalate
-    print("📋 TEST GROUP 2: GET /api/cron/escalate")
-    print("-" * 80)
-    test("T2.1: GET /api/cron/escalate returns 200 with skipped message", test_cron_escalate_without_email)
-    test("T2.2: No enquiries auto-escalated when email not configured", test_cron_escalate_no_auto_escalation)
+    print()
+    print("--- FRONTEND ROUTE TESTS ---")
+    test_frontend_routes()
     
-    # Test 3: GET /api/notifications/status
-    print("📋 TEST GROUP 3: GET /api/notifications/status")
-    print("-" * 80)
-    test("T3.1: GET /api/notifications/status shows emailConfigured:false", test_notifications_status)
-    test("T3.2: PUT /api/settings with notifications updates leadRecipients", test_settings_notifications_update)
+    print()
+    print("--- CLEANUP ---")
+    test_delete_enquiry()
     
-    # Test 4: POST /api/notifications/test
-    print("📋 TEST GROUP 4: POST /api/notifications/test")
-    print("-" * 80)
-    test("T4.1: POST /api/notifications/test returns 400 without RESEND_API_KEY", test_notifications_test_without_resend)
-    
-    # Test 5: PUT /api/settings with ga4Id and managerEmail
-    print("📋 TEST GROUP 5: PUT /api/settings with ga4Id and leadOverflow.managerEmail")
-    print("-" * 80)
-    test("T5.1: PUT /api/settings with ga4Id and managerEmail persists", test_settings_ga4_and_manager_email)
-    
-    # Test 6: PUT /api/projects/:id with awards
-    print("📋 TEST GROUP 6: PUT /api/projects/:id with awards")
-    print("-" * 80)
-    test("T6.1: PUT /api/projects/:id with awards array persists", test_project_awards)
-    
-    # Test 7: Regression tests
-    print("📋 TEST GROUP 7: Regression Tests")
-    print("-" * 80)
-    test("T7.1: GET /api/projects still works", test_regression_get_projects)
-    test("T7.2: GET /api/settings still works", test_regression_get_settings)
-    test("T7.3: GET /api/testimonials still works", test_regression_get_testimonials)
-    test("T7.4: POST /api/enquiries/:id/claim still works", test_regression_enquiry_claim)
-    test("T7.5: POST /api/enquiries/:id/escalate still works", test_regression_enquiry_escalate)
-    
-    # Summary
+    print()
     print("=" * 80)
-    print(f"RESULTS: {passed} passed, {failed} failed")
+    print("TEST SUMMARY")
     print("=" * 80)
+    passed_count = sum(1 for r in test_results if r["passed"])
+    total_count = len(test_results)
+    print(f"Total: {total_count} tests")
+    print(f"Passed: {passed_count} tests")
+    print(f"Failed: {total_count - passed_count} tests")
+    print(f"Success Rate: {(passed_count/total_count*100):.1f}%")
     
-    if failed == 0:
-        print("✅ ALL TESTS PASSED")
+    if passed_count == total_count:
+        print()
+        print("🎉 ALL TESTS PASSED - No regressions detected after dependency upgrades!")
     else:
-        print(f"❌ {failed} TEST(S) FAILED")
+        print()
+        print("⚠️  SOME TESTS FAILED - Review failures above")
+        print()
+        print("Failed tests:")
+        for r in test_results:
+            if not r["passed"]:
+                print(f"  - {r['name']}: {r['message']}")
     
-    print()
+    print("=" * 80)
+    
+    return passed_count == total_count
+
+if __name__ == "__main__":
+    success = main()
+    exit(0 if success else 1)
