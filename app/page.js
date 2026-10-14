@@ -2679,6 +2679,42 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     setBackingUp(false);
   };
 
+  const [restoreFile, setRestoreFile] = useState(null); // { name, data }
+  const [restoreConfirm, setRestoreConfirm] = useState('');
+  const [restoring, setRestoring] = useState(false);
+  const restoreInputRef = useRef(null);
+  const pickRestoreFile = async (file) => {
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (data?.app !== 'gillco-group' || !data?.collections) throw new Error('This is not a Gillco backup file');
+      setRestoreFile({ name: file.name, data });
+      setRestoreConfirm('');
+    } catch (e) { toast.error(e?.message?.includes('JSON') ? 'File is not a valid backup (.json)' : (e?.message || 'Could not read file')); }
+    if (restoreInputRef.current) restoreInputRef.current.value = '';
+  };
+  const runRestore = async () => {
+    if (!restoreFile) return;
+    setRestoring(true);
+    try {
+      // Safety first: download a copy of the CURRENT data before replacing it
+      await downloadBackup();
+      const res = await fetch('/api/admin/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pass },
+        body: JSON.stringify(restoreFile.data),
+      });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(r.error || 'Restore failed');
+      const total = Object.values(r.restored || {}).reduce((a, b) => a + b, 0);
+      if (r.ok) toast.success(`Restored ${total} records — reloading…`);
+      else toast.error(`Partly restored. Failed: ${Object.keys(r.failed || {}).join(', ')}`);
+      setRestoreFile(null);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) { toast.error(e?.message || 'Restore failed'); }
+    setRestoring(false);
+  };
+
   const saveProject = async (p) => {
     try {
       const updated = await api(`/projects/${p.id}`, { method: 'PUT', body: JSON.stringify(p) });
@@ -2754,9 +2790,38 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
             <button onClick={downloadBackup} disabled={backingUp} data-testid="admin-backup-btn" title="Downloads a full copy of all projects, enquiries, settings, team, news, posts and testimonials" className="px-4 py-2 bg-gillco-green text-white rounded-full text-sm inline-flex items-center gap-2 hover:bg-gillco-green-dark disabled:opacity-60">
               <Download className="w-4 h-4" /> {backingUp ? 'Preparing…' : 'Download Backup'}
             </button>
+            <input ref={restoreInputRef} type="file" accept="application/json,.json" className="hidden" data-testid="admin-restore-input" onChange={e => pickRestoreFile(e.target.files?.[0])} />
+            <button onClick={() => restoreInputRef.current?.click()} data-testid="admin-restore-btn" className="px-4 py-2 border border-gillco-green text-gillco-green rounded-full text-sm inline-flex items-center gap-2 hover:bg-white">
+              <Clock className="w-4 h-4" /> Restore Backup
+            </button>
             <button onClick={() => { setAuthed(false); setPass(''); }} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
           </div>
         </div>
+
+        {restoreFile && (
+          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" data-testid="restore-modal">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+              <h3 className="font-serif text-2xl text-gillco-green">Restore from backup?</h3>
+              <p className="text-sm text-slate-600 mt-1">File: <b>{restoreFile.name}</b>{restoreFile.data.createdAt && <> · made on <b>{new Date(restoreFile.data.createdAt).toLocaleString('en-IN')}</b></>}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                {Object.entries(restoreFile.data.collections || {}).filter(([, v]) => Array.isArray(v)).map(([k, v]) => (
+                  <div key={k} className="flex justify-between bg-gillco-cream rounded-lg px-3 py-1.5"><span className="capitalize">{k}</span><b>{v.length}</b></div>
+                ))}
+              </div>
+              <div className="mt-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg p-3">
+                Everything currently on the site in these sections will be <b>replaced</b> with the backup. A copy of the current data downloads automatically first, so you can undo this.
+              </div>
+              <label className="block text-xs text-slate-500 mt-4">Type <b>RESTORE</b> to confirm</label>
+              <input value={restoreConfirm} onChange={e => setRestoreConfirm(e.target.value)} data-testid="restore-confirm-input" className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg outline-none focus:border-gillco-green" />
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={() => setRestoreFile(null)} disabled={restoring} className="px-4 py-2 border border-slate-300 rounded-full text-sm">Cancel</button>
+                <button onClick={runRestore} disabled={restoreConfirm.trim().toUpperCase() !== 'RESTORE' || restoring} data-testid="restore-confirm-btn" className="px-5 py-2 bg-red-600 text-white rounded-full text-sm font-semibold disabled:opacity-40">
+                  {restoring ? 'Restoring…' : 'Restore now'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2 mb-6 flex-wrap">
           {tabs.map(t => (

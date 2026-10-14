@@ -905,6 +905,50 @@ async function handleRoute(request, { params }) {
       });
     }
 
+    // ---------- ADMIN RESTORE (replace collections from a backup file) ----------
+    if (route === '/admin/restore' && method === 'POST') {
+      const pass = request.headers.get('x-admin-password') || '';
+      if (pass !== (process.env.ADMIN_PASSWORD || 'gillco2025')) {
+        return cors(NextResponse.json({ error: 'unauthorized' }, { status: 401 }));
+      }
+      let payload;
+      try { payload = await request.json(); } catch { return cors(NextResponse.json({ error: 'File is not valid JSON' }, { status: 400 })); }
+      if (payload?.app !== 'gillco-group' || !payload?.collections || typeof payload.collections !== 'object') {
+        return cors(NextResponse.json({ error: 'This is not a Gillco backup file' }, { status: 400 }));
+      }
+      const NAME_OK = /^[A-Za-z0-9_-]{1,60}$/;
+      const entries = Object.entries(payload.collections).filter(([n, docs]) => NAME_OK.test(n) && !n.startsWith('system.') && !n.startsWith('__restore') && Array.isArray(docs));
+      if (entries.length === 0) return cors(NextResponse.json({ error: 'Backup contains no data' }, { status: 400 }));
+      if (!entries.some(([n]) => n === 'projects' || n === 'settings')) {
+        return cors(NextResponse.json({ error: 'Backup is missing projects/settings — refusing to restore' }, { status: 400 }));
+      }
+      const restored = {};
+      const failed = {};
+      for (const [name, docs] of entries) {
+        const clean = docs.filter(d => d && typeof d === 'object').map(d => { const { _id, ...rest } = d; return rest; });
+        const tmp = `__restore_${name}`;
+        try {
+          await db.collection(tmp).drop().catch(() => {});
+          if (clean.length) await db.collection(tmp).insertMany(clean, { ordered: false });
+          else await db.createCollection(tmp).catch(() => {});
+          // atomic swap per collection
+          await db.collection(tmp).rename(name, { dropTarget: true });
+          restored[name] = clean.length;
+        } catch (err) {
+          // fallback for hosts that do not allow rename
+          try {
+            await db.collection(tmp).drop().catch(() => {});
+            await db.collection(name).deleteMany({});
+            if (clean.length) await db.collection(name).insertMany(clean, { ordered: false });
+            restored[name] = clean.length;
+          } catch (err2) {
+            failed[name] = String(err2?.message || err2);
+          }
+        }
+      }
+      return cors(NextResponse.json({ ok: Object.keys(failed).length === 0, restored, failed, backupCreatedAt: payload.createdAt || null }));
+    }
+
     // ---------- ADMIN AUTH (simple passcode) ----------
     if (route === '/admin/login' && method === 'POST') {
       const body = await request.json();

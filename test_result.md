@@ -16,6 +16,18 @@
 # 
 ## user_problem_statement: {problem_statement}
 ## backend:
+  - task: "POST /api/admin/restore — replace collections from backup JSON"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Header x-admin-password required (401). Body = backup JSON from GET /api/admin/backup. 400 if invalid JSON, app!=='gillco-group', no collections, or neither projects nor settings present. Swaps each collection via temp collection + rename(dropTarget). Returns {ok, restored{name:count}, failed{}, backupCreatedAt}."
+
   - task: "GET /api/health + GET /api/admin/backup (full JSON export, admin-password header) + no-store cache headers on private endpoints"
     implemented: true
     working: "NA"
@@ -298,6 +310,18 @@
           agent: "testing"
           comment: "✅ BUG FIX VERIFIED - ALL TESTS PASS. **Desktop (1440×900)**: Floating container found at bottom-right (fixed bottom-6 right-6 z-40) ✅. Horizontal row container with flex items-center gap-3 ✅. Found 2 buttons in horizontal row ✅. Call button (amber gradient, tel: link) at x=1292, y=752, w=56, h=56 with Phone icon and wiggle animation ✅. WhatsApp button (green #25D366, wa.me link) at x=1360, y=752, w=56, h=56 with official WhatsApp SVG ✅. Y difference: 0px (perfectly parallel) ✅. X difference: 68px (side-by-side horizontal) ✅. Enquire Now button (gradient-gold) found BELOW the horizontal row ✅. CRITICAL: NO EMI/Calculator button found (checked 3 buttons/links, no text or icon matches) ✅. **Mobile (390×844)**: Same structure as desktop, Call + WhatsApp horizontal, Enquire Now below, NO EMI button ✅. **Console**: 0 errors, 0 warnings ✅. Screenshot evidence shows amber Call and green WhatsApp buttons side-by-side horizontally with gold Enquire button below. Bug fix is production-ready."
 
+  - task: "POST /api/admin/restore — Full database restore from backup JSON with validation and atomic swap"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE RESTORE ENDPOINT TESTING COMPLETE - ALL 11 TESTS PASSED. **S1 GET /api/admin/backup (1 test)**: Returns 200 with correct password 'gillco2025', Content-Disposition 'attachment; filename=gillco-backup-*.json', Cache-Control 'no-store', response has {app:'gillco-group', version, createdAt, database, counts, collections}, collections include projects/settings/enquiries/news/team/testimonials/posts/history (8 collections), counts match array lengths (enquiries:11, history:46, news:7, posts:1, projects:8, settings:1, team:3, testimonials:3), NO '_id' keys found in any documents, saved to memory and /tmp/orig_backup.json ✅. **S2 Authentication (2 tests)**: (1) POST /api/admin/restore without header returns 401 'unauthorized' ✅, (2) With wrong password returns 401 'unauthorized' ✅. **S3 Validation (3 tests)**: (1) Body 'not json' returns 400 'File is not valid JSON' ✅, (2) {app:'other-app', collections:{}} returns 400 'This is not a Gillco backup file' ✅, (3) {app:'gillco-group', collections:{news:[]}} (missing projects/settings) returns 400 'Backup is missing projects/settings — refusing to restore' ✅. **S4 Round Trip Restore (1 test)**: Modified ORIGINAL backup — changed projects[0].name to 'RESTORE TEST' and removed one testimonial (3→2), POST restore returns 200 {ok:true, restored:{enquiries:11, history:46, news:7, posts:1, projects:8, settings:1, team:3, testimonials:2}}, restored counts equal array lengths ✅. GET /api/projects shows project with name 'RESTORE TEST' ✅. GET /api/testimonials shows count decreased from 3 to 2 ✅. No _id in responses ✅. **S5 Restore ORIGINAL (1 test)**: POST ORIGINAL backup returns 200 ok:true ✅. GET /api/projects shows project name restored to 'Gillco Meraqui' ✅. Fresh GET /api/admin/backup shows all collection counts match ORIGINAL counts (enquiries:11, history:46, news:7, posts:1, projects:8, settings:1, team:3, testimonials:3) ✅. NO leftover __restore_* collections found in backup ✅. **S6 Regression (3 tests)**: (1) GET /api/settings returns 200 brandName='Gillco Group' ✅, (2) GET /api/projects returns 200 with 8 projects ✅, (3) GET /api/health returns 200 {ok:true, db:'up', dbMs:32} ✅. CLEANUP: ORIGINAL backup restored successfully at end of test run ✅. All restore functionality working correctly with proper authentication, validation, atomic collection swap, and no data corruption. Endpoint is production-ready."
+
 ## metadata:
   created_by: "main_agent"
   version: "1.0"
@@ -313,6 +337,8 @@
 ## agent_communication:
     - agent: "testing"
       message: "✅ HEALTH & BACKUP ENDPOINTS TESTING COMPLETE - ALL 11 TESTS PASSED. Tested 2 new endpoints in Next.js catch-all API: (1) GET /api/health returns 200 with {ok:true, db:'up', dbMs:3} and Cache-Control contains 'no-store' ✅. (2) GET /api/admin/backup: without header returns 401 ✅, with wrong password returns 401 ✅, with correct password 'gillco2025' returns 200 with proper JSON backup structure (counts + collections), Content-Disposition attachment filename 'gillco-backup-*.json', Cache-Control 'no-store', collections include projects/settings/enquiries, counts match array lengths, NO '_id' keys anywhere in docs ✅. (3) Cache headers verified: /api/enquiries and /api/history both return 'no-store' ✅. (4) Quick regression: GET /api/projects (200, 8 projects), POST /api/admin/login with 'gillco2025' (ok:true), wrong password (401), GET /api/cron/escalate (200) all pass ✅. MINOR OBSERVATION: /api/settings returns Cache-Control 'no-store, no-cache, must-revalidate' instead of expected 'public, max-age=0, s-maxage=60...' - all endpoints follow same cache pattern (likely Next.js global middleware). All new endpoints are production-ready and fully functional."
+    - agent: "testing"
+      message: "✅ POST /api/admin/restore COMPREHENSIVE TESTING COMPLETE - ALL 11 TESTS PASSED. Tested restore endpoint with admin password 'gillco2025' at http://localhost:3000/api. **STEP 1 - Backup**: GET /api/admin/backup with correct header saved ORIGINAL backup to memory and /tmp/orig_backup.json with 8 collections (enquiries:11, history:46, news:7, posts:1, projects:8, settings:1, team:3, testimonials:3), all counts match array lengths, no _id leaks ✅. **STEP 2 - Auth**: POST restore without header → 401 ✅, wrong password → 401 ✅. **STEP 3 - Validation**: Body 'not json' → 400 'File is not valid JSON' ✅, {app:'other-app'} → 400 'not a Gillco backup file' ✅, {app:'gillco-group', collections:{news:[]}} (missing projects/settings) → 400 'missing projects/settings' ✅. **STEP 4 - Round Trip**: Modified ORIGINAL (projects[0].name='RESTORE TEST', removed 1 testimonial 3→2), POST restore → 200 {ok:true, restored counts match}, GET /api/projects shows 'RESTORE TEST' ✅, testimonial count decreased ✅, no _id in responses ✅. **STEP 5 - Restore ORIGINAL**: POST ORIGINAL → 200, project name back to 'Gillco Meraqui' ✅, fresh backup counts match ORIGINAL for all collections ✅, NO leftover __restore_* collections ✅. **STEP 6 - Regression**: GET /api/settings (brandName='Gillco Group'), /api/projects (8 projects), /api/health (ok:true, db:'up') all working ✅. **CLEANUP**: ORIGINAL backup restored successfully at end ✅. All restore functionality production-ready with proper authentication, validation, atomic swap, and no data corruption."
     - agent: "main"
       message: "User reported two issues with screenshot: (1) 'tower black one is hiding project details, merge it in project details' — the dark hover-reveal strip on the 'Latest RERA Status Updates' cards (home page) was sliding up on hover and covering the RERA number / status / dates. FIX: Removed the dark absolute-positioned hover strip entirely. Moved the Acres / Towers / Units stats INTO the white RERA panel body as an inline 3-column grid at the top (bordered-bottom separator), so stats are ALWAYS visible, never overlap, no hover needed. (2) 'put whatsapp and direct call icon parallel' — the floating sticky stack on the right had Call stacked ABOVE WhatsApp vertically. FIX: Call + WhatsApp are now in a HORIZONTAL row (parallel, side-by-side) inside an inner flex div, with the gold 'Enquire Now' button below them. The EMI calculator icon was already removed from the stack (moved to /emi-calculator page in a previous turn). Please verify: (a) Home page → 'Latest RERA Status Updates' section → each of the 4 cards should show the hero image at top with name/logo/location visible, and the WHITE panel below the image should contain inline stat strip (Acres · Towers · Units if non-zero) at the top with a border-bottom, followed by RERA number, status badge, dates — ALL stats and details visible with NO dark overlay sliding up on hover. (b) Floating buttons bottom-right: Call button (amber gradient with wiggling phone icon) and WhatsApp button (premium green with official WA SVG) should be SIDE-BY-SIDE in one row (parallel). The gold 'Enquire Now' button sits below them. There should be NO EMI calculator / Calculator icon in the sticky stack. (c) Console errors: should be 0."
     - agent: "testing"
