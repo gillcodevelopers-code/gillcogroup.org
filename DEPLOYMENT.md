@@ -128,3 +128,16 @@ Ask the AI agent with any of these:
 - "Add GA4 with ID G-XXXX"
 - "Wire up Twilio WhatsApp instant-send (need SID/token)"
 - "Set up Resend email notifications for new leads"
+
+## Lead email alerts, auto-escalation & GA4 (added)
+
+Vercel → Project → Settings → Environment Variables:
+- `RESEND_API_KEY` — from resend.com → API Keys (emails are OFF until this is set)
+- `RESEND_FROM` — e.g. `Gillco Leads <leads@gillcogroup.org>` (domain must be verified in Resend → Domains)
+- `CRON_SECRET` — any long random string (protects the escalation URL)
+- optional `LEAD_NOTIFY_EMAIL` — fallback recipient if none set in Admin → Settings
+
+Exact 15-minute escalation (works on any Vercel plan): create a free job at cron-job.org that calls
+`https://gillcogroup.org/api/cron/escalate?key=<CRON_SECRET>` every 1–5 minutes.
+
+GA4: Admin CMS → Settings → "GA4 Measurement ID" (G-XXXXXXX). Events sent: page_view, generate_lead, click_call, click_whatsapp.

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { toast } from 'sonner';
+import { trackEvent } from '@/lib/analytics';
 import {
   Phone, Mail, MapPin, MessageCircle, Menu, X, ChevronLeft, ChevronRight,
   Search, ArrowRight, Award, Building2, Users, LandPlot, Home as HomeIcon,
@@ -1042,6 +1043,47 @@ function Hero({ settings, onEnquire, goTo }) {
 }
 
 /* ============================ PROJECT CARD ============================ */
+function AwardsStrip({ awards = [], compact = false }) {
+  const list = (awards || []).filter(a => a?.title || a?.by);
+  if (list.length === 0) return null;
+  if (compact) {
+    return (
+      <div className="mt-3 flex flex-wrap gap-1.5" data-testid="awards-badges">
+        {list.slice(0, 2).map((a, i) => (
+          <span key={a.id || i} title={`${a.title || 'Award'}${a.by ? ` — ${a.by}` : ''}${a.year ? ` (${a.year})` : ''}`} className="inline-flex items-center gap-1.5 max-w-full text-[11px] font-medium pl-1 pr-2.5 py-1 rounded-full bg-gradient-to-r from-amber-50 to-yellow-50 border border-gillco-gold/40 text-amber-900">
+            {a.logo
+              ? <img loading="lazy" src={a.logo} alt={a.by || 'award'} className="w-4 h-4 object-contain rounded-full bg-white" />
+              : <Award className="w-3.5 h-3.5 text-gillco-gold ml-1" />}
+            <span className="truncate">{a.by ? `Awarded by ${a.by}` : a.title}</span>
+          </span>
+        ))}
+        {list.length > 2 && <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-slate-100 text-slate-600">+{list.length - 2} more</span>}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 rounded-2xl border border-gillco-gold/40 bg-gradient-to-br from-amber-50/70 via-white to-gillco-cream p-5" data-testid="awards-strip">
+      <div className="flex items-center gap-2 mb-3">
+        <Award className="w-5 h-5 text-gillco-gold" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-gillco-green">Awards & Recognition</span>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {list.map((a, i) => (
+          <div key={a.id || i} className="flex items-center gap-3 bg-white rounded-xl border border-slate-100 p-3 transition hover:shadow-md hover:border-gillco-gold/50">
+            <div className="w-12 h-12 shrink-0 rounded-full bg-gillco-cream border border-gillco-gold/30 flex items-center justify-center overflow-hidden">
+              {a.logo ? <img loading="lazy" src={a.logo} alt={a.by || 'award'} className="w-10 h-10 object-contain" /> : <Award className="w-6 h-6 text-gillco-gold" />}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-800 leading-snug">{a.title || 'Award'}</div>
+              <div className="text-xs text-slate-500">{a.by ? `Awarded by ${a.by}` : ''}{a.year ? `${a.by ? ' · ' : ''}${a.year}` : ''}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
   const s = STATUS_MAP[project.status];
   return (
@@ -1072,6 +1114,7 @@ function ProjectCard({ project, onOpen, onCompareToggle, inCompare }) {
         {project.softLaunch?.enabled && (
           <div className="mt-3"><CountdownBadge soft={project.softLaunch} compact /></div>
         )}
+        <AwardsStrip awards={project.awards} compact />
         <p className="text-sm text-slate-600 mt-3 line-clamp-2">{project.summary}</p>
         <div className="mt-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100 pt-3">
           <span>{project.unitMix}</span>
@@ -1244,6 +1287,8 @@ function ProjectDetail({ project, onClose, onEnquire, onCompareToggle, inCompare
                 <div><span className="text-slate-500 block text-xs">Last Updated</span><span className="text-slate-800">{new Date(project.reraUpdatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</span></div>
               </div>
             </div>
+
+            <AwardsStrip awards={project.awards} />
 
             <p className="mt-6 text-slate-700 leading-relaxed">{project.summary}</p>
 
@@ -1563,14 +1608,40 @@ function CompareModal({ projects, onClose, onRemove }) {
 }
 
 /* ============================ ENQUIRY MODAL ============================ */
+const PROPERTY_TYPES = [
+  { id: 'residential', label: 'Residential' },
+  { id: 'commercial', label: 'Commercial' },
+  { id: 'industrial', label: 'Industrial Plot' },
+];
+const BUDGET_OPTIONS = ['Under ₹50 Lakh', '₹50 Lakh – ₹1 Cr', '₹1 – 1.5 Cr', '₹1.5 – 2 Cr', '₹2 – 3 Cr', '₹3 – 5 Cr', '₹5 Cr+'];
+
+function projectMatchesType(p, type) {
+  if (!type) return true;
+  const primary = (p.category || '').toLowerCase();
+  const offerings = Array.isArray(p.offerings) ? p.offerings.map(o => (o.type || '').toLowerCase()) : [];
+  if (type === 'residential') return p.hasResidential === true || primary === 'residential' || primary === 'mixed-use' || offerings.includes('residential');
+  if (type === 'commercial') return p.hasCommercial === true || primary === 'commercial' || primary === 'mixed-use' || offerings.includes('commercial');
+  if (type === 'industrial') return primary === 'industrial';
+  return true;
+}
+
 function EnquiryModal({ prefill, settings, onClose, projects }) {
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
     projectId: prefill.projectId || '',
     projectName: prefill.projectName || '',
+    propertyType: '',
+    budget: '',
+    budgetCustom: '',
     message: '',
     consent: false,
   });
+  const typeProjects = useMemo(() => (projects || []).filter(p => projectMatchesType(p, form.propertyType)), [projects, form.propertyType]);
+  const selectedProject = (projects || []).find(p => p.id === form.projectId);
+  const budgetText = form.budget === 'custom'
+    ? (form.budgetCustom ? `₹${form.budgetCustom} Cr` : '')
+    : form.budget;
+  const propertyTypeLabel = PROPERTY_TYPES.find(t => t.id === form.propertyType)?.label || '';
   const [submitting, setSubmitting] = useState(false);
 
   const utm = useMemo(() => {
@@ -1588,6 +1659,7 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
     e.preventDefault();
     if (!form.name || !form.phone) { toast.error('Name and phone are required'); return; }
     if (!form.consent) { toast.error('Please accept the consent to continue'); return; }
+    if (form.budget === 'custom' && form.budgetCustom && !(Number(form.budgetCustom) > 0)) { toast.error('Please enter your budget in Crore, e.g. 1.25'); return; }
     setSubmitting(true);
     try {
       const proj = projects.find(p => p.id === form.projectId);
@@ -1609,6 +1681,8 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
         body: JSON.stringify({
           ...form,
           projectName,
+          propertyType: propertyTypeLabel,
+          budget: budgetText,
           type: prefill.type || 'general',
           utm,
           routedTo: picked?.name || null,
@@ -1616,6 +1690,7 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
         }),
       });
       toast.success('Thank you! Routing to WhatsApp for instant confirmation…');
+      trackEvent('generate_lead', { form_type: prefill.type || 'general', project_name: projectName, property_type: propertyTypeLabel || 'any', budget: budgetText || 'not given', lead_source: utm.utm_source || 'website', routed_to: picked?.name || 'default' });
 
       const adminWA = picked?.whatsapp || settings?.whatsapp || '919041795879';
       const agentLabel = picked?.name || 'Gillco Sales Team';
@@ -1627,6 +1702,8 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
         `📞 Phone: ${form.phone}`,
         form.email ? `✉️ Email: ${form.email}` : null,
         `🏢 Project: ${projectName}`,
+        propertyTypeLabel ? `🏷️ Property Type: ${propertyTypeLabel}` : null,
+        budgetText ? `💰 Budget: ${budgetText}` : null,
         form.message ? `💬 Message: ${form.message}` : null,
         `🎯 Type: ${prefill.type || 'general'}`,
         `📥 Source: ${src}`,
@@ -1661,8 +1738,12 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
         <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
           <div className="gradient-emerald text-white p-6 relative">
             <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"><X className="w-4 h-4" /></button>
-            <p className="text-xs tracking-widest text-gillco-gold uppercase font-semibold">Gillco Group</p>
-            <h2 className="font-serif text-3xl mt-1">{title}</h2>
+            <div className="flex items-center gap-3 pr-10">
+              <img src={settings?.logoWhite || GILLCO_LOGO_WHITE} alt="Gillco Group" data-testid="enquiry-logo" className="h-10 w-auto object-contain" onError={e => { e.currentTarget.style.display = 'none'; }} />
+              <span className="h-8 w-px bg-white/30" />
+              <p className="text-xs tracking-widest text-gillco-gold uppercase font-semibold">Gillco Group</p>
+            </div>
+            <h2 className="font-serif text-3xl mt-3">{title}</h2>
             <p className="text-sm text-white/80 mt-1">A relationship manager will call within 24 hours.</p>
           </div>
           <form onSubmit={submit} className="p-6 space-y-4">
@@ -1680,12 +1761,49 @@ function EnquiryModal({ prefill, settings, onClose, projects }) {
                 <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-500 uppercase tracking-wider">Property Type</label>
+                <select data-testid="enquiry-property-type" value={form.propertyType} onChange={e => {
+                  const t = e.target.value;
+                  const keep = !form.projectId || (projects || []).some(p => p.id === form.projectId && projectMatchesType(p, t));
+                  setForm({ ...form, propertyType: t, projectId: keep ? form.projectId : '' });
+                }} className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none bg-white">
+                  <option value="">Any type</option>
+                  {PROPERTY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 uppercase tracking-wider">Budget (₹ Cr)</label>
+                <select data-testid="enquiry-budget" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} className="w-full mt-1 px-3 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none bg-white">
+                  <option value="">Select budget</option>
+                  {BUDGET_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                  <option value="custom">Custom amount…</option>
+                </select>
+              </div>
+            </div>
+            {form.budget === 'custom' && (
+              <div>
+                <label className="text-xs text-slate-500 uppercase tracking-wider">Your Budget</label>
+                <div className="mt-1 flex items-center border border-slate-200 rounded-lg focus-within:border-gillco-green overflow-hidden">
+                  <span className="px-3 text-slate-500 text-sm">₹</span>
+                  <input data-testid="enquiry-budget-custom" type="number" inputMode="decimal" min="0.1" step="0.05" autoFocus value={form.budgetCustom} onChange={e => setForm({ ...form, budgetCustom: e.target.value })} placeholder="e.g. 1.25" className="flex-1 py-2.5 outline-none" />
+                  <span className="px-3 py-2.5 bg-gillco-cream text-gillco-green text-sm font-semibold">Crore</span>
+                </div>
+                {Number(form.budgetCustom) > 0 && <p className="text-[11px] text-slate-500 mt-1">≈ ₹{(Number(form.budgetCustom) * 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })} Lakh</p>}
+              </div>
+            )}
             <div>
               <label className="text-xs text-slate-500 uppercase tracking-wider">Interested In</label>
-              <select value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none">
-                <option value="">Select a project (optional)</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name} — {p.location}</option>)}
-              </select>
+              <div className="flex items-center gap-2 mt-1">
+                {selectedProject?.logo && (
+                  <img src={safeImg(selectedProject.logo)} alt={`${selectedProject.name} logo`} data-testid="enquiry-project-logo" className="w-11 h-11 object-contain bg-white rounded-md border border-slate-200 p-1 shrink-0" />
+                )}
+                <select data-testid="enquiry-project" value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:border-gillco-green outline-none bg-white">
+                  <option value="">{typeProjects.length ? 'Select a project (optional)' : 'No projects for this type yet'}</option>
+                  {typeProjects.map(p => <option key={p.id} value={p.id}>{p.name} — {p.location}</option>)}
+                </select>
+              </div>
             </div>
             <div>
               <label className="text-xs text-slate-500 uppercase tracking-wider">Message</label>
@@ -3167,6 +3285,14 @@ function SettingsEditor({ settings, onSave }) {
         <Field label="Manager Name" value={s.leadOverflow?.managerName} onChange={v => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), managerName: v } })} />
       </div>
       <Field label="Manager WhatsApp (digits, no +)" value={s.leadOverflow?.managerWhatsapp} onChange={v => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), managerWhatsapp: v } })} />
+      <Field label="Manager Email (gets the automatic escalation email)" value={s.leadOverflow?.managerEmail} onChange={v => setS({ ...s, leadOverflow: { ...(s.leadOverflow || {}), managerEmail: v } })} />
+
+      <NotificationSettings s={s} setS={setS} />
+
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Google Analytics (GA4)</h4>
+      <p className="text-xs text-slate-500 -mt-2">Paste your Measurement ID to start tracking visits, enquiries, call and WhatsApp clicks. Leave empty to turn tracking off.</p>
+      <Field label="GA4 Measurement ID (e.g. G-ABC123XYZ)" value={s.ga4Id} onChange={v => setS({ ...s, ga4Id: v.trim().toUpperCase() })} />
+      {s.ga4Id && !/^G-[A-Z0-9]{4,}$/.test(s.ga4Id) && <p className="text-xs text-red-600 -mt-2">That doesn't look like a GA4 ID — it should start with "G-".</p>}
 
       <h4 className="font-serif text-xl text-gillco-green mt-6">Popup Form Config</h4>
       <div className="grid md:grid-cols-3 gap-4 items-end">
@@ -3179,6 +3305,42 @@ function SettingsEditor({ settings, onSave }) {
       </div>
 
       <button onClick={() => onSave(s)} className="mt-6 px-6 py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center gap-2"><Save className="w-4 h-4" /> Save All Settings</button>
+    </div>
+  );
+}
+
+function NotificationSettings({ s, setS }) {
+  const [status, setStatus] = useState(null);
+  const [sending, setSending] = useState(false);
+  useEffect(() => { api('/notifications/status').then(setStatus).catch(() => {}); }, []);
+  const n = s.notifications || {};
+  const sendTest = async () => {
+    setSending(true);
+    try {
+      const r = await api('/notifications/test', { method: 'POST' });
+      toast.success(`Test email sent to ${(r.to || []).join(', ')}`);
+    } catch (e) { toast.error(e?.message || 'Test email failed'); }
+    setSending(false);
+  };
+  return (
+    <div data-testid="notification-settings">
+      <h4 className="font-serif text-xl text-gillco-green mt-6">Email Alerts for New Leads</h4>
+      <p className="text-xs text-slate-500 mt-1">Every enquiry is emailed instantly to these addresses. Unclaimed leads are emailed to the manager automatically after the escalation time above. Save settings before sending a test.</p>
+      {status && (
+        <div className={`mt-2 text-xs rounded-lg px-3 py-2 ${status.emailConfigured ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+          {status.emailConfigured ? '✓ Email sending is connected.' : '⚠ Email sending is not connected yet — add the RESEND_API_KEY on the server. Until then no emails are sent.'}
+        </div>
+      )}
+      <div className="grid md:grid-cols-3 gap-3 items-end mt-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={n.emailEnabled !== false} onChange={e => setS({ ...s, notifications: { ...n, emailEnabled: e.target.checked } })} />
+          Email me every new enquiry
+        </label>
+        <div className="md:col-span-2"><Field label="Send to (comma-separated emails)" value={n.leadEmails} onChange={v => setS({ ...s, notifications: { ...n, leadEmails: v } })} /></div>
+      </div>
+      <button type="button" onClick={sendTest} disabled={sending} data-testid="send-test-email" className="mt-3 px-4 py-2 border border-gillco-green text-gillco-green rounded-full text-sm inline-flex items-center gap-2 disabled:opacity-50">
+        <Mail className="w-4 h-4" /> {sending ? 'Sending…' : 'Send test email'}
+      </button>
     </div>
   );
 }
@@ -3228,6 +3390,8 @@ function EnquiriesPanel({ settings }) {
         `📞 Phone: ${e.phone}`,
         e.email ? `✉️ Email: ${e.email}` : null,
         `🏢 Project: ${e.projectName || '—'}`,
+        e.propertyType ? `🏷️ Property Type: ${e.propertyType}` : null,
+        e.budget ? `💰 Budget: ${e.budget}` : null,
         e.routedTo ? `👥 Originally routed to: ${e.routedTo}` : null,
         e.message ? `💬 Message: ${e.message}` : null,
         `🕒 Received: ${new Date(e.createdAt).toLocaleString('en-IN')}`,
@@ -3318,7 +3482,7 @@ function EnquiriesPanel({ settings }) {
                         <div className="font-medium text-slate-800">{e.name}</div>
                         <div className="text-xs text-slate-500">{e.phone}{e.email ? ` · ${e.email}` : ''}</div>
                       </td>
-                      <td className="p-3 text-xs">{e.projectName || '—'}</td>
+                      <td className="p-3 text-xs">{e.projectName || '—'}{(e.propertyType || e.budget) && <div className="text-[11px] text-slate-500 mt-0.5">{[e.propertyType, e.budget].filter(Boolean).join(' · ')}</div>}</td>
                       <td className="p-3 text-xs">
                         {e.routedTo ? (
                           <span className="text-gillco-green font-medium">{e.routedTo}</span>
@@ -3328,7 +3492,7 @@ function EnquiriesPanel({ settings }) {
                       </td>
                       <td className="p-3">
                         {e.escalated ? (
-                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500 text-white">ESCALATED</span>
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500 text-white" title={e.escalatedBy === 'auto' ? 'Manager was emailed automatically' : ''}>{e.escalatedBy === 'auto' ? 'AUTO-ESCALATED' : 'ESCALATED'}</span>
                         ) : e.claimed ? (
                           <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-600 text-white">CLAIMED</span>
                         ) : overdue ? (
@@ -3567,6 +3731,31 @@ function ProjectEditor({ project, onSave, onClose }) {
         </div>
         <div className="mt-3">
           <Field label="YouTube Video ID (e.g. dQw4w9WgXcQ) — for project walkthrough" value={p.youtubeId} onChange={v => setP({ ...p, youtubeId: v })} />
+        </div>
+
+        {/* Awards */}
+        <h4 className="font-serif text-lg text-gillco-green mt-6 mb-1">Awards & Recognition</h4>
+        <p className="text-xs text-slate-500 mb-2">Shown as "Awarded by…" badges on the project card and inside the project details.</p>
+        <div className="space-y-3" data-testid="awards-editor">
+          {(p.awards || []).map((a, i) => {
+            const upd = (patch) => setP({ ...p, awards: (p.awards || []).map((x, idx) => idx === i ? { ...x, ...patch } : x) });
+            return (
+              <div key={a.id || i} className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50/50">
+                <div className="grid md:grid-cols-3 gap-2">
+                  <Field label="Award Title (e.g. Best Residential Project)" value={a.title} onChange={v => upd({ title: v })} />
+                  <Field label="Awarded By (e.g. CREDAI Punjab)" value={a.by} onChange={v => upd({ by: v })} />
+                  <Field label="Year" value={a.year} onChange={v => upd({ year: v })} />
+                </div>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1"><MediaUploader label="Awarding Body Logo (optional)" value={a.logo} onChange={v => upd({ logo: v })} accept="image/*" hint="Square transparent PNG works best" /></div>
+                  <button type="button" onClick={() => setP({ ...p, awards: (p.awards || []).filter((_, idx) => idx !== i) })} className="px-3 py-2 text-red-600 border border-red-200 rounded-full text-sm inline-flex items-center gap-1"><Trash2 className="w-4 h-4" /> Remove</button>
+                </div>
+              </div>
+            );
+          })}
+          <button type="button" data-testid="add-award-btn" onClick={() => setP({ ...p, awards: [...(p.awards || []), { id: `a${Date.now()}`, title: '', by: '', year: String(new Date().getFullYear()), logo: '' }] })} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Add Award
+          </button>
         </div>
         <div className="mt-3">
           <MediaUploader label="Brochure PDF (optional)" value={p.brochureUrl} onChange={v => setP({ ...p, brochureUrl: v })} accept="application/pdf" hint="PDF files only, up to 15 MB" />

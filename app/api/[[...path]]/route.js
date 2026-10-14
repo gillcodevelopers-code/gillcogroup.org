@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
-import { NextResponse } from 'next/server';
+import { NextResponse, after as runAfter } from 'next/server';
+import { notifyNewLead, runEscalation, emailConfigured, sendEmail, leadRecipients } from '@/lib/leadMailer';
 import fs from 'fs';
 import nodePath from 'path';
 
@@ -522,6 +523,8 @@ async function handleRoute(request, { params }) {
         message: body.message || '',
         projectId: body.projectId || null,
         projectName: body.projectName || null,
+        propertyType: String(body.propertyType || '').slice(0, 80),
+        budget: String(body.budget || '').slice(0, 40),
         type: body.type || 'general',
         utm: body.utm || {},
         consent: !!body.consent,
@@ -538,9 +541,51 @@ async function handleRoute(request, { params }) {
         return cors(NextResponse.json({ error: 'name and phone required' }, { status: 400 }));
       }
       await db.collection('enquiries').insertOne(doc);
-      return cors(NextResponse.json(strip(doc)));
+      const saved = strip({ ...doc });
+      // Email + overdue check run after the response is sent — never delays or fails the enquiry
+      runAfter(async () => {
+        await notifyNewLead(db, saved);
+        try { await runEscalation(db); } catch (err) { console.error('[escalation]', err?.message); }
+      });
+      return cors(NextResponse.json(saved));
+    }
+
+    // ---------- LEAD AUTOMATION (cron + test) ----------
+    if (route === '/cron/escalate' && (method === 'GET' || method === 'POST')) {
+      const secret = process.env.CRON_SECRET;
+      if (secret) {
+        const url = new URL(request.url);
+        const auth = request.headers.get('authorization') || '';
+        if (auth !== `Bearer ${secret}` && url.searchParams.get('key') !== secret) {
+          return cors(NextResponse.json({ error: 'unauthorized' }, { status: 401 }));
+        }
+      }
+      const result = await runEscalation(db);
+      return cors(NextResponse.json({ ok: true, ...result, at: new Date().toISOString() }));
+    }
+    if (route === '/notifications/status' && method === 'GET') {
+      const s = await db.collection('settings').findOne({ id: 'site' });
+      return cors(NextResponse.json({
+        emailConfigured: emailConfigured(),
+        senderConfigured: !!process.env.RESEND_FROM,
+        cronSecretSet: !!process.env.CRON_SECRET,
+        leadRecipients: leadRecipients(s),
+      }));
+    }
+    if (route === '/notifications/test' && method === 'POST') {
+      if (!emailConfigured()) return cors(NextResponse.json({ error: 'Email is not set up yet (RESEND_API_KEY missing on the server)' }, { status: 400 }));
+      const s = await db.collection('settings').findOne({ id: 'site' });
+      const to = leadRecipients(s);
+      if (to.length === 0) return cors(NextResponse.json({ error: 'Add at least one lead notification email in Settings first' }, { status: 400 }));
+      try {
+        const r = await sendEmail({ to, subject: 'Gillco website — test lead alert', html: '<p>This is a test. Lead email alerts are working ✅</p>' });
+        return cors(NextResponse.json({ ok: true, to, result: r }));
+      } catch (err) {
+        return cors(NextResponse.json({ error: err?.message || 'send failed' }, { status: 502 }));
+      }
     }
     if (route === '/enquiries' && method === 'GET') {
+      runAfter(async () => { try { await runEscalation(db); } catch (err) { console.error('[escalation]', err?.message); } });
       const items = await db.collection('enquiries').find({}).sort({ createdAt: -1 }).limit(500).toArray();
       return cors(NextResponse.json(items.map(strip)));
     }

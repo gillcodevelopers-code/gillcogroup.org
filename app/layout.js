@@ -1,5 +1,6 @@
 import './globals.css';
 import { Toaster } from 'sonner';
+import Analytics from '@/components/Analytics';
 
 export const viewport = {
   width: 'device-width',
@@ -111,6 +112,7 @@ export default function RootLayout({ children }) {
       <body className="font-['Inter',sans-serif] bg-white text-slate-800 antialiased selection:bg-emerald-800 selection:text-white">
         {children}
         <Toaster position="top-right" richColors />
+        <Analytics />
       </body>
     </html>
   );

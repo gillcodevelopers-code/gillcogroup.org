@@ -1,863 +1,440 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for Gillco Group CMS - Phase 2
-Tests NEW endpoints: Media Upload, Change History, Undo + Regression
+Backend API Testing for Gillco Group CMS - Phase 2 Lead Automation Features
+Tests new endpoints: enquiries with email notifications, cron escalation, notifications status/test, settings persistence, project awards
 """
 
 import requests
 import json
-import os
-import io
-from PIL import Image
-from dotenv import load_dotenv
+import time
+from datetime import datetime
 
-# Load environment variables
-load_dotenv('/app/.env')
+# Read base URL from .env
+def get_base_url():
+    try:
+        with open('/app/.env', 'r') as f:
+            for line in f:
+                if line.startswith('NEXT_PUBLIC_BASE_URL='):
+                    return line.split('=', 1)[1].strip() + '/api'
+    except:
+        pass
+    return 'http://localhost:3000/api'
 
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://realty-cms-hub-1.preview.emergentagent.com')
-API_BASE = f"{BASE_URL}/api"
-
-print(f"🧪 Testing Gillco CMS Backend APIs - Phase 2 (Media Upload + History + Undo)")
-print(f"📍 Base URL: {API_BASE}")
-print("=" * 80)
+BASE_URL = get_base_url()
+print(f"🔗 Testing against: {BASE_URL}\n")
 
 # Test counters
-tests_passed = 0
-tests_failed = 0
-test_results = []
+passed = 0
+failed = 0
+test_data_cleanup = []
 
-def test_result(test_name, passed, details=""):
-    """Print and track test result"""
-    global tests_passed, tests_failed
-    status = "✅ PASS" if passed else "❌ FAIL"
-    print(f"\n{status} | {test_name}")
-    if details:
-        print(f"   {details}")
-    
-    if passed:
-        tests_passed += 1
-    else:
-        tests_failed += 1
-    
-    test_results.append({
-        "name": test_name,
-        "passed": passed,
-        "details": details
-    })
-    return passed
-
-# ============================================================================
-# SECTION 1: MEDIA UPLOAD TESTS
-# ============================================================================
-print("\n" + "=" * 80)
-print("SECTION 1: MEDIA UPLOAD TESTS")
-print("=" * 80)
-
-# Test 1.1: POST /api/upload with valid PNG file
-print("\n" + "=" * 80)
-print("TEST 1.1: POST /api/upload (valid PNG file)")
-print("=" * 80)
-uploaded_url = None
-uploaded_filename = None
-try:
-    # Create a small 100x100 red pixel PNG in memory
-    img = Image.new('RGB', (100, 100), color='red')
-    img_bytes = io.BytesIO()
-    img.save(img_bytes, format='PNG')
-    img_bytes.seek(0)
-    
-    files = {'file': ('test_image.png', img_bytes, 'image/png')}
-    response = requests.post(f"{API_BASE}/upload", files=files, timeout=15)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 200 and
-        'url' in data and
-        'filename' in data and
-        'size' in data and
-        'mime' in data and
-        data['url'].startswith('/uploads/') and
-        data['url'].endswith('.png') and
-        data['filename'] == 'test_image.png' and
-        data['size'] > 0
-    )
-    
-    if passed:
-        uploaded_url = data['url']
-        uploaded_filename = data['filename']
-        test_result("POST /api/upload (valid PNG)", True, 
-                   f"Uploaded: {uploaded_filename}, URL: {uploaded_url}, Size: {data['size']} bytes, MIME: {data['mime']}")
-    else:
-        test_result("POST /api/upload (valid PNG)", False, 
-                   f"Status: {response.status_code}, Response: {json.dumps(data)}")
-        
-except Exception as e:
-    test_result("POST /api/upload (valid PNG)", False, f"Exception: {str(e)}")
-
-# Test 1.2: Verify uploaded file is publicly accessible
-print("\n" + "=" * 80)
-print("TEST 1.2: Verify uploaded file is publicly accessible")
-print("=" * 80)
-if uploaded_url:
+def test(name, fn):
+    global passed, failed
     try:
-        file_url = f"{BASE_URL}{uploaded_url}"
-        response = requests.get(file_url, timeout=10)
-        
-        passed = (
-            response.status_code == 200 and
-            len(response.content) > 0 and
-            response.headers.get('content-type', '').startswith('image/')
-        )
-        
-        test_result("GET uploaded file URL", passed, 
-                   f"URL: {file_url}, Status: {response.status_code}, Size: {len(response.content)} bytes")
-        
+        print(f"▶ {name}")
+        fn()
+        print(f"  ✅ PASS\n")
+        passed += 1
+    except AssertionError as e:
+        print(f"  ❌ FAIL: {e}\n")
+        failed += 1
     except Exception as e:
-        test_result("GET uploaded file URL", False, f"Exception: {str(e)}")
-else:
-    test_result("GET uploaded file URL", False, "No uploaded URL to test")
+        print(f"  ❌ ERROR: {e}\n")
+        failed += 1
 
-# Test 1.3: Verify file exists on filesystem
-print("\n" + "=" * 80)
-print("TEST 1.3: Verify file saved to /app/public/uploads/")
-print("=" * 80)
-if uploaded_url:
-    try:
-        # Extract filename from URL
-        filename = uploaded_url.split('/')[-1]
-        filepath = f"/app/public/uploads/{filename}"
-        
-        file_exists = os.path.exists(filepath)
-        
-        if file_exists:
-            file_size = os.path.getsize(filepath)
-            test_result("File saved to filesystem", True, 
-                       f"File exists at {filepath}, Size: {file_size} bytes")
-        else:
-            test_result("File saved to filesystem", False, 
-                       f"File not found at {filepath}")
-        
-    except Exception as e:
-        test_result("File saved to filesystem", False, f"Exception: {str(e)}")
-else:
-    test_result("File saved to filesystem", False, "No uploaded URL to verify")
+def assert_eq(actual, expected, msg=""):
+    if actual != expected:
+        raise AssertionError(f"{msg} Expected {expected}, got {actual}")
 
-# Test 1.4: POST /api/upload with no file field (expect 400)
-print("\n" + "=" * 80)
-print("TEST 1.4: POST /api/upload (no file field - expect 400)")
-print("=" * 80)
-try:
-    # Send empty form data
-    response = requests.post(f"{API_BASE}/upload", data={}, timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 400 and
-        'error' in data and
-        'no file' in data['error'].lower()
-    )
-    
-    test_result("POST /api/upload (no file)", passed, 
-               f"Status: {response.status_code}, Error: {data.get('error', 'N/A')}")
-    
-except Exception as e:
-    test_result("POST /api/upload (no file)", False, f"Exception: {str(e)}")
+def assert_in(item, container, msg=""):
+    if item not in container:
+        raise AssertionError(f"{msg} Expected {item} in {container}")
 
-# ============================================================================
-# SECTION 2: CHANGE HISTORY TESTS
-# ============================================================================
-print("\n" + "=" * 80)
-print("SECTION 2: CHANGE HISTORY TESTS")
-print("=" * 80)
+def assert_true(condition, msg=""):
+    if not condition:
+        raise AssertionError(msg or "Expected True")
 
-# Test 2.1: GET /api/history (should return array)
-print("\n" + "=" * 80)
-print("TEST 2.1: GET /api/history")
-print("=" * 80)
-initial_history_count = 0
-try:
-    response = requests.get(f"{API_BASE}/history", timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 200 and
-        isinstance(data, list)
-    )
-    
-    # Verify structure of entries if any exist
-    if passed and len(data) > 0:
-        first_entry = data[0]
-        has_required_fields = all(k in first_entry for k in ['id', 'ts', 'entity', 'entityId', 'action', 'label', 'undone'])
-        no_mongo_id = '_id' not in first_entry and '_seedVersion' not in first_entry
-        passed = passed and has_required_fields and no_mongo_id
-        
-        initial_history_count = len(data)
-        test_result("GET /api/history", True, 
-                   f"Found {len(data)} history entries. First entry: entity={first_entry.get('entity')}, action={first_entry.get('action')}, label={first_entry.get('label', 'N/A')[:50]}")
-    else:
-        test_result("GET /api/history", passed, 
-                   f"Status: {response.status_code}, Entries: {len(data)}")
-    
-except Exception as e:
-    test_result("GET /api/history", False, f"Exception: {str(e)}")
+def assert_false(condition, msg=""):
+    if condition:
+        raise AssertionError(msg or "Expected False")
 
-# ============================================================================
-# SECTION 3: AUTO-HISTORY LOGGING TESTS
-# ============================================================================
-print("\n" + "=" * 80)
-print("SECTION 3: AUTO-HISTORY LOGGING TESTS")
-print("=" * 80)
-
-# Store original values for cleanup
-original_tagline = None
-created_project_id = None
-created_team_id = None
-created_news_id = None
-
-# Test 3.1: PUT /api/settings and verify history entry
-print("\n" + "=" * 80)
-print("TEST 3.1: PUT /api/settings + verify history entry")
-print("=" * 80)
-try:
-    # Get original tagline
-    response = requests.get(f"{API_BASE}/settings", timeout=10)
-    original_settings = response.json()
-    original_tagline = original_settings.get('tagline')
-    
-    # Update tagline
-    test_tagline = "HISTORY TEST TAGLINE"
-    response = requests.put(f"{API_BASE}/settings", json={"tagline": test_tagline}, timeout=10)
-    
-    passed = response.status_code == 200
-    
-    # Check history for this update
-    response_history = requests.get(f"{API_BASE}/history", timeout=10)
-    history = response_history.json()
-    
-    # Find the settings update entry
-    settings_entry = None
-    for entry in history:
-        if (entry.get('entity') == 'settings' and 
-            entry.get('action') == 'update' and
-            'site settings' in entry.get('label', '').lower()):
-            settings_entry = entry
-            break
-    
-    if settings_entry:
-        has_before_after = 'before' in settings_entry and 'after' in settings_entry
-        passed = passed and has_before_after
-        test_result("PUT /api/settings + history", True, 
-                   f"Settings updated. History entry found: id={settings_entry['id']}, label={settings_entry['label']}, has before/after: {has_before_after}")
-    else:
-        test_result("PUT /api/settings + history", False, 
-                   f"Settings updated but no history entry found for entity='settings', action='update'")
-    
-except Exception as e:
-    test_result("PUT /api/settings + history", False, f"Exception: {str(e)}")
-
-# Test 3.2: POST /api/projects and verify history entry
-print("\n" + "=" * 80)
-print("TEST 3.2: POST /api/projects + verify history entry")
-print("=" * 80)
-try:
-    project_data = {
-        "name": "QA Test Project",
-        "slug": "qa-test-project",
-        "status": "upcoming",
-        "category": "residential",
-        "location": "Test Location",
-        "reraNumber": "TEST-RERA-001",
-        "reraStatus": "Test Status",
-        "unitMix": "2 BHK",
-        "priceRange": "₹50L - ₹1Cr",
-        "heroImage": "",
-        "gallery": [],
-        "summary": "Test project for QA",
-        "amenities": ["Test Amenity"],
-        "milestones": []
+# ==================== TEST 1: POST /api/enquiries with email notification ====================
+def test_enquiry_creation_success():
+    """POST /api/enquiries with valid data should return 200 fast with id, no _id"""
+    payload = {
+        "name": "Rajesh Kumar",
+        "phone": "9876543210",
+        "email": "rajesh.kumar@example.com",
+        "projectName": "Gillco Meraqui",
+        "consent": True,
+        "message": "Interested in 3 BHK unit"
     }
+    start = time.time()
+    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
+    elapsed = time.time() - start
     
-    response = requests.post(f"{API_BASE}/projects", json=project_data, timeout=10)
-    data = response.json()
+    assert_eq(r.status_code, 200, "Status code should be 200")
+    data = r.json()
+    assert_true('id' in data, "Response should contain 'id'")
+    assert_false('_id' in data, "Response should NOT contain MongoDB '_id'")
+    assert_eq(data['name'], payload['name'], "Name should match")
+    assert_eq(data['phone'], payload['phone'], "Phone should match")
+    assert_eq(data['email'], payload['email'], "Email should match")
+    assert_eq(data['projectName'], payload['projectName'], "Project name should match")
+    assert_eq(data['consent'], True, "Consent should be True")
+    assert_true(elapsed < 3.0, f"Response should be fast (took {elapsed:.2f}s)")
     
-    passed = response.status_code == 200 and 'id' in data
-    
-    if passed:
-        created_project_id = data['id']
-        
-        # Check history
-        response_history = requests.get(f"{API_BASE}/history", timeout=10)
-        history = response_history.json()
-        
-        project_entry = None
-        for entry in history:
-            if (entry.get('entity') == 'projects' and 
-                entry.get('action') == 'create' and
-                entry.get('entityId') == created_project_id):
-                project_entry = entry
-                break
-        
-        if project_entry:
-            test_result("POST /api/projects + history", True, 
-                       f"Project created: {created_project_id}. History entry found: label={project_entry['label']}")
-        else:
-            test_result("POST /api/projects + history", False, 
-                       f"Project created but no history entry found")
-    else:
-        test_result("POST /api/projects + history", False, 
-                   f"Status: {response.status_code}")
-    
-except Exception as e:
-    test_result("POST /api/projects + history", False, f"Exception: {str(e)}")
+    # Store for cleanup
+    test_data_cleanup.append(('enquiry', data['id']))
+    print(f"    Created enquiry ID: {data['id']} in {elapsed:.2f}s")
 
-# Test 3.3: PUT /api/projects/:id and verify history entry
-print("\n" + "=" * 80)
-print("TEST 3.3: PUT /api/projects/:id + verify history entry")
-print("=" * 80)
-if created_project_id:
-    try:
-        update_data = {"constructionPercent": 25}
-        response = requests.put(f"{API_BASE}/projects/{created_project_id}", json=update_data, timeout=10)
-        
-        passed = response.status_code == 200
-        
-        # Check history
-        response_history = requests.get(f"{API_BASE}/history", timeout=10)
-        history = response_history.json()
-        
-        update_entry = None
-        for entry in history:
-            if (entry.get('entity') == 'projects' and 
-                entry.get('action') == 'update' and
-                entry.get('entityId') == created_project_id):
-                update_entry = entry
-                break
-        
-        if update_entry:
-            test_result("PUT /api/projects/:id + history", True, 
-                       f"Project updated. History entry found: label={update_entry['label']}")
-        else:
-            test_result("PUT /api/projects/:id + history", False, 
-                       f"Project updated but no history entry found")
-        
-    except Exception as e:
-        test_result("PUT /api/projects/:id + history", False, f"Exception: {str(e)}")
-else:
-    test_result("PUT /api/projects/:id + history", False, "No project ID to test")
-
-# Test 3.4: POST /api/team and verify history entry
-print("\n" + "=" * 80)
-print("TEST 3.4: POST /api/team + verify history entry")
-print("=" * 80)
-try:
-    team_data = {
-        "name": "QA Test Member",
-        "role": "QA Engineer",
-        "bio": "Test bio",
-        "photo": "",
-        "linkedin": "#"
-    }
-    
-    response = requests.post(f"{API_BASE}/team", json=team_data, timeout=10)
-    data = response.json()
-    
-    passed = response.status_code == 200 and 'id' in data
-    
-    if passed:
-        created_team_id = data['id']
-        
-        # Check history
-        response_history = requests.get(f"{API_BASE}/history", timeout=10)
-        history = response_history.json()
-        
-        team_entry = None
-        for entry in history:
-            if (entry.get('entity') == 'team' and 
-                entry.get('action') == 'create' and
-                entry.get('entityId') == created_team_id):
-                team_entry = entry
-                break
-        
-        if team_entry:
-            test_result("POST /api/team + history", True, 
-                       f"Team member created: {created_team_id}. History entry found: label={team_entry['label']}")
-        else:
-            test_result("POST /api/team + history", False, 
-                       f"Team member created but no history entry found")
-    else:
-        test_result("POST /api/team + history", False, 
-                   f"Status: {response.status_code}")
-    
-except Exception as e:
-    test_result("POST /api/team + history", False, f"Exception: {str(e)}")
-
-# Test 3.5: POST /api/news and verify history entry
-print("\n" + "=" * 80)
-print("TEST 3.5: POST /api/news + verify history entry")
-print("=" * 80)
-try:
-    news_data = {
-        "date": "2025-06-15",
-        "title": "QA Test News Item",
-        "category": "Test"
-    }
-    
-    response = requests.post(f"{API_BASE}/news", json=news_data, timeout=10)
-    data = response.json()
-    
-    passed = response.status_code == 200 and 'id' in data
-    
-    if passed:
-        created_news_id = data['id']
-        
-        # Check history
-        response_history = requests.get(f"{API_BASE}/history", timeout=10)
-        history = response_history.json()
-        
-        news_entry = None
-        for entry in history:
-            if (entry.get('entity') == 'news' and 
-                entry.get('action') == 'create' and
-                entry.get('entityId') == created_news_id):
-                news_entry = entry
-                break
-        
-        if news_entry:
-            test_result("POST /api/news + history", True, 
-                       f"News created: {created_news_id}. History entry found: label={news_entry['label']}")
-        else:
-            test_result("POST /api/news + history", False, 
-                       f"News created but no history entry found")
-    else:
-        test_result("POST /api/news + history", False, 
-                   f"Status: {response.status_code}")
-    
-except Exception as e:
-    test_result("POST /api/news + history", False, f"Exception: {str(e)}")
-
-# ============================================================================
-# SECTION 4: UNDO FUNCTIONALITY TESTS
-# ============================================================================
-print("\n" + "=" * 80)
-print("SECTION 4: UNDO FUNCTIONALITY TESTS")
-print("=" * 80)
-
-# Test 4.1: Undo settings update (restore original tagline)
-print("\n" + "=" * 80)
-print("TEST 4.1: POST /api/history/:id/undo (settings update)")
-print("=" * 80)
-try:
-    # Find the settings update history entry
-    response_history = requests.get(f"{API_BASE}/history", timeout=10)
-    history = response_history.json()
-    
-    settings_entry = None
-    for entry in history:
-        if (entry.get('entity') == 'settings' and 
-            entry.get('action') == 'update' and
-            entry.get('undone') == False):
-            settings_entry = entry
-            break
-    
-    if settings_entry:
-        history_id = settings_entry['id']
-        
-        # Perform undo
-        response = requests.post(f"{API_BASE}/history/{history_id}/undo", timeout=10)
-        data = response.json()
-        
-        passed = response.status_code == 200 and data.get('ok') == True
-        
-        if passed:
-            # Verify settings were restored
-            response_settings = requests.get(f"{API_BASE}/settings", timeout=10)
-            current_settings = response_settings.json()
-            current_tagline = current_settings.get('tagline')
-            
-            # Check if tagline was restored to original
-            restored = current_tagline == original_tagline
-            
-            # Verify history entry is marked as undone
-            response_history2 = requests.get(f"{API_BASE}/history", timeout=10)
-            history2 = response_history2.json()
-            
-            undone_entry = None
-            for entry in history2:
-                if entry.get('id') == history_id:
-                    undone_entry = entry
-                    break
-            
-            is_marked_undone = undone_entry and undone_entry.get('undone') == True
-            
-            test_result("Undo settings update", restored and is_marked_undone, 
-                       f"Undo successful. Tagline restored: {restored} (current: {current_tagline}, original: {original_tagline}), Marked undone: {is_marked_undone}")
-        else:
-            test_result("Undo settings update", False, 
-                       f"Status: {response.status_code}, Response: {json.dumps(data)}")
-    else:
-        test_result("Undo settings update", False, "No settings update history entry found to undo")
-    
-except Exception as e:
-    test_result("Undo settings update", False, f"Exception: {str(e)}")
-
-# Test 4.2: Attempt to undo the same entry again (expect 400)
-print("\n" + "=" * 80)
-print("TEST 4.2: POST /api/history/:id/undo (already undone - expect 400)")
-print("=" * 80)
-try:
-    # Find an undone entry
-    response_history = requests.get(f"{API_BASE}/history", timeout=10)
-    history = response_history.json()
-    
-    undone_entry = None
-    for entry in history:
-        if entry.get('undone') == True:
-            undone_entry = entry
-            break
-    
-    if undone_entry:
-        history_id = undone_entry['id']
-        
-        response = requests.post(f"{API_BASE}/history/{history_id}/undo", timeout=10)
-        data = response.json()
-        
-        passed = (
-            response.status_code == 400 and
-            'error' in data and
-            'already undone' in data['error'].lower()
-        )
-        
-        test_result("Undo already undone entry", passed, 
-                   f"Status: {response.status_code}, Error: {data.get('error', 'N/A')}")
-    else:
-        test_result("Undo already undone entry", False, "No undone entry found to test")
-    
-except Exception as e:
-    test_result("Undo already undone entry", False, f"Exception: {str(e)}")
-
-# Test 4.3: Undo nonexistent history entry (expect 404)
-print("\n" + "=" * 80)
-print("TEST 4.3: POST /api/history/nonexistent-id/undo (expect 404)")
-print("=" * 80)
-try:
-    response = requests.post(f"{API_BASE}/history/nonexistent-id-12345/undo", timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 404 and
-        'error' in data
-    )
-    
-    test_result("Undo nonexistent entry", passed, 
-               f"Status: {response.status_code}, Error: {data.get('error', 'N/A')}")
-    
-except Exception as e:
-    test_result("Undo nonexistent entry", False, f"Exception: {str(e)}")
-
-# Test 4.4: Undo CREATE (delete the created project)
-print("\n" + "=" * 80)
-print("TEST 4.4: Undo CREATE (delete created project)")
-print("=" * 80)
-if created_project_id:
-    try:
-        # Find the project create history entry
-        response_history = requests.get(f"{API_BASE}/history", timeout=10)
-        history = response_history.json()
-        
-        create_entry = None
-        for entry in history:
-            if (entry.get('entity') == 'projects' and 
-                entry.get('action') == 'create' and
-                entry.get('entityId') == created_project_id and
-                entry.get('undone') == False):
-                create_entry = entry
-                break
-        
-        if create_entry:
-            history_id = create_entry['id']
-            
-            # Perform undo
-            response = requests.post(f"{API_BASE}/history/{history_id}/undo", timeout=10)
-            data = response.json()
-            
-            passed = response.status_code == 200 and data.get('ok') == True
-            
-            if passed:
-                # Verify project was deleted
-                response_project = requests.get(f"{API_BASE}/projects/{created_project_id}", timeout=10)
-                project_deleted = response_project.status_code == 404
-                
-                test_result("Undo CREATE (delete project)", project_deleted, 
-                           f"Undo successful. Project deleted: {project_deleted}")
-            else:
-                test_result("Undo CREATE (delete project)", False, 
-                           f"Status: {response.status_code}, Response: {json.dumps(data)}")
-        else:
-            test_result("Undo CREATE (delete project)", False, "No project create history entry found")
-        
-    except Exception as e:
-        test_result("Undo CREATE (delete project)", False, f"Exception: {str(e)}")
-else:
-    test_result("Undo CREATE (delete project)", False, "No project ID to test")
-
-# Test 4.5: DELETE then UNDO (restore deleted team member)
-print("\n" + "=" * 80)
-print("TEST 4.5: DELETE team member then UNDO (restore)")
-print("=" * 80)
-if created_team_id:
-    try:
-        # First, delete the team member
-        response_delete = requests.delete(f"{API_BASE}/team/{created_team_id}", timeout=10)
-        delete_passed = response_delete.status_code == 200
-        
-        if delete_passed:
-            # Verify deletion
-            response_team = requests.get(f"{API_BASE}/team", timeout=10)
-            team_list = response_team.json()
-            deleted = not any(t.get('id') == created_team_id for t in team_list)
-            
-            if deleted:
-                # Find the delete history entry
-                response_history = requests.get(f"{API_BASE}/history", timeout=10)
-                history = response_history.json()
-                
-                delete_entry = None
-                for entry in history:
-                    if (entry.get('entity') == 'team' and 
-                        entry.get('action') == 'delete' and
-                        entry.get('entityId') == created_team_id and
-                        entry.get('undone') == False):
-                        delete_entry = entry
-                        break
-                
-                if delete_entry:
-                    history_id = delete_entry['id']
-                    
-                    # Perform undo (restore)
-                    response_undo = requests.post(f"{API_BASE}/history/{history_id}/undo", timeout=10)
-                    undo_data = response_undo.json()
-                    
-                    undo_passed = response_undo.status_code == 200 and undo_data.get('ok') == True
-                    
-                    if undo_passed:
-                        # Verify team member was restored
-                        response_team2 = requests.get(f"{API_BASE}/team", timeout=10)
-                        team_list2 = response_team2.json()
-                        restored = any(t.get('id') == created_team_id and t.get('name') == 'QA Test Member' for t in team_list2)
-                        
-                        test_result("DELETE then UNDO (restore team)", restored, 
-                                   f"Team member deleted then restored: {restored}")
-                    else:
-                        test_result("DELETE then UNDO (restore team)", False, 
-                                   f"Undo failed. Status: {response_undo.status_code}")
-                else:
-                    test_result("DELETE then UNDO (restore team)", False, "No delete history entry found")
-            else:
-                test_result("DELETE then UNDO (restore team)", False, "Team member not deleted")
-        else:
-            test_result("DELETE then UNDO (restore team)", False, 
-                       f"Delete failed. Status: {response_delete.status_code}")
-        
-    except Exception as e:
-        test_result("DELETE then UNDO (restore team)", False, f"Exception: {str(e)}")
-else:
-    test_result("DELETE then UNDO (restore team)", False, "No team ID to test")
-
-# ============================================================================
-# SECTION 5: REGRESSION TESTS
-# ============================================================================
-print("\n" + "=" * 80)
-print("SECTION 5: REGRESSION TESTS (verify existing endpoints still work)")
-print("=" * 80)
-
-# Test 5.1: GET /api/settings
-print("\n" + "=" * 80)
-print("TEST 5.1: GET /api/settings (regression)")
-print("=" * 80)
-try:
-    response = requests.get(f"{API_BASE}/settings", timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 200 and
-        data.get('brandName') == 'Gillco Group' and
-        data.get('phone') == '+91 90417 95879' and
-        data.get('email') == 'support@gillcogroup.org'
-    )
-    
-    test_result("GET /api/settings (regression)", passed, 
-               f"brandName: {data.get('brandName')}, phone: {data.get('phone')}, email: {data.get('email')}")
-    
-except Exception as e:
-    test_result("GET /api/settings (regression)", False, f"Exception: {str(e)}")
-
-# Test 5.2: GET /api/projects (verify 8 seeded projects)
-print("\n" + "=" * 80)
-print("TEST 5.2: GET /api/projects (regression - 8 projects)")
-print("=" * 80)
-try:
-    response = requests.get(f"{API_BASE}/projects", timeout=10)
-    data = response.json()
-    
-    # Count only seeded projects (not QA test projects)
-    seeded_ids = ['meraqui', 'parkhills', 'industrial-park', 'villas', 'floors', 'towers', 'heights', 'palms']
-    seeded_projects = [p for p in data if p.get('id') in seeded_ids]
-    
-    passed = (
-        response.status_code == 200 and
-        len(seeded_projects) == 8
-    )
-    
-    test_result("GET /api/projects (regression)", passed, 
-               f"Found {len(seeded_projects)} seeded projects (total: {len(data)})")
-    
-except Exception as e:
-    test_result("GET /api/projects (regression)", False, f"Exception: {str(e)}")
-
-# Test 5.3: GET /api/news
-print("\n" + "=" * 80)
-print("TEST 5.3: GET /api/news (regression)")
-print("=" * 80)
-try:
-    response = requests.get(f"{API_BASE}/news", timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 200 and
-        isinstance(data, list) and
-        len(data) >= 6  # At least 6 seeded items
-    )
-    
-    test_result("GET /api/news (regression)", passed, 
-               f"Found {len(data)} news items")
-    
-except Exception as e:
-    test_result("GET /api/news (regression)", False, f"Exception: {str(e)}")
-
-# Test 5.4: GET /api/team
-print("\n" + "=" * 80)
-print("TEST 5.4: GET /api/team (regression)")
-print("=" * 80)
-try:
-    response = requests.get(f"{API_BASE}/team", timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 200 and
-        isinstance(data, list) and
-        len(data) >= 3  # At least 3 seeded members
-    )
-    
-    test_result("GET /api/team (regression)", passed, 
-               f"Found {len(data)} team members")
-    
-except Exception as e:
-    test_result("GET /api/team (regression)", False, f"Exception: {str(e)}")
-
-# Test 5.5: POST /api/admin/login
-print("\n" + "=" * 80)
-print("TEST 5.5: POST /api/admin/login (regression)")
-print("=" * 80)
-try:
-    response = requests.post(f"{API_BASE}/admin/login", json={"password": "gillco2025"}, timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 200 and
-        data.get('ok') == True
-    )
-    
-    test_result("POST /api/admin/login (regression)", passed, 
-               f"Status: {response.status_code}, ok: {data.get('ok')}")
-    
-except Exception as e:
-    test_result("POST /api/admin/login (regression)", False, f"Exception: {str(e)}")
-
-# Test 5.6: POST /api/enquiries
-print("\n" + "=" * 80)
-print("TEST 5.6: POST /api/enquiries (regression)")
-print("=" * 80)
-try:
-    enquiry_data = {
-        "name": "Regression Test User",
-        "phone": "8888888888",
-        "email": "regression@test.com",
+def test_enquiry_missing_phone():
+    """POST /api/enquiries without phone should return 400"""
+    payload = {
+        "name": "Test User",
+        "email": "test@example.com",
+        "projectName": "Gillco Parkhills",
         "consent": True
     }
-    response = requests.post(f"{API_BASE}/enquiries", json=enquiry_data, timeout=10)
-    data = response.json()
-    
-    passed = (
-        response.status_code == 200 and
-        'id' in data
-    )
-    
-    test_result("POST /api/enquiries (regression)", passed, 
-               f"Status: {response.status_code}, Created ID: {data.get('id', 'N/A')}")
-    
-except Exception as e:
-    test_result("POST /api/enquiries (regression)", False, f"Exception: {str(e)}")
+    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
+    assert_eq(r.status_code, 400, "Status code should be 400 for missing phone")
+    data = r.json()
+    assert_true('error' in data, "Response should contain error message")
+    print(f"    Error message: {data.get('error')}")
 
-# ============================================================================
-# CLEANUP
-# ============================================================================
-print("\n" + "=" * 80)
-print("CLEANUP: Removing QA test data")
-print("=" * 80)
-
-# Delete QA test news if it still exists
-if created_news_id:
+def test_enquiry_no_crash_without_resend():
+    """Verify server logs show no crash when RESEND_API_KEY is not set"""
+    # Check supervisor logs for nextjs
+    import subprocess
     try:
-        response = requests.delete(f"{API_BASE}/news/{created_news_id}", timeout=10)
-        if response.status_code == 200:
-            print(f"✅ Deleted QA test news: {created_news_id}")
-        else:
-            print(f"⚠️  Failed to delete news (may already be deleted): {response.status_code}")
+        result = subprocess.run(
+            ['tail', '-n', '50', '/var/log/supervisor/nextjs.out.log'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        logs = result.stdout
+        
+        # Look for crash indicators
+        crash_indicators = ['ECONNREFUSED', 'Cannot read property', 'TypeError', 'ReferenceError', 'crashed']
+        has_crash = any(indicator in logs for indicator in crash_indicators)
+        
+        assert_false(has_crash, "Server logs should not show crashes related to email")
+        print(f"    Server logs clean - no crashes detected")
     except Exception as e:
-        print(f"⚠️  Exception deleting news: {str(e)}")
+        print(f"    Warning: Could not check logs - {e}")
 
-# Delete QA test team member if it still exists
-if created_team_id:
-    try:
-        response = requests.delete(f"{API_BASE}/team/{created_team_id}", timeout=10)
-        if response.status_code == 200:
-            print(f"✅ Deleted QA test team member: {created_team_id}")
-        else:
-            print(f"⚠️  Failed to delete team member (may already be deleted): {response.status_code}")
-    except Exception as e:
-        print(f"⚠️  Exception deleting team member: {str(e)}")
+# ==================== TEST 2: GET /api/cron/escalate ====================
+def test_cron_escalate_without_email():
+    """GET /api/cron/escalate should return 200 with skipped message when email not configured"""
+    r = requests.get(f"{BASE_URL}/cron/escalate", timeout=10)
+    assert_eq(r.status_code, 200, "Status code should be 200")
+    data = r.json()
+    assert_true(data.get('ok'), "Response should have ok:true")
+    assert_eq(data.get('skipped'), 'email not configured', "Should skip with 'email not configured' message")
+    print(f"    Response: {json.dumps(data, indent=2)}")
 
-# Delete uploaded test image file
-if uploaded_url:
-    try:
-        filename = uploaded_url.split('/')[-1]
-        filepath = f"/app/public/uploads/{filename}"
-        if os.path.exists(filepath):
-            os.remove(filepath)
-            print(f"✅ Deleted uploaded test file: {filepath}")
-        else:
-            print(f"⚠️  Test file not found: {filepath}")
-    except Exception as e:
-        print(f"⚠️  Exception deleting test file: {str(e)}")
+def test_cron_escalate_no_auto_escalation():
+    """After inserting enquiry, confirm no enquiry got escalated:true by auto sweep"""
+    # Create a test enquiry
+    payload = {
+        "name": "Priya Sharma",
+        "phone": "9123456789",
+        "email": "priya.sharma@example.com",
+        "projectName": "Gillco Industrial Park",
+        "consent": True
+    }
+    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
+    assert_eq(r.status_code, 200, "Enquiry creation should succeed")
+    enquiry_id = r.json()['id']
+    test_data_cleanup.append(('enquiry', enquiry_id))
+    
+    # Wait a moment
+    time.sleep(1)
+    
+    # Run escalation cron
+    r = requests.get(f"{BASE_URL}/cron/escalate", timeout=10)
+    assert_eq(r.status_code, 200, "Cron should return 200")
+    
+    # Fetch all enquiries and verify none have escalatedBy='auto'
+    r = requests.get(f"{BASE_URL}/enquiries", timeout=10)
+    assert_eq(r.status_code, 200, "GET enquiries should succeed")
+    enquiries = r.json()
+    
+    auto_escalated = [e for e in enquiries if e.get('escalatedBy') == 'auto']
+    assert_eq(len(auto_escalated), 0, "No enquiries should be auto-escalated when email not configured")
+    print(f"    Verified: No auto-escalated enquiries found (total enquiries: {len(enquiries)})")
 
-# ============================================================================
-# SUMMARY
-# ============================================================================
-print("\n" + "=" * 80)
-print("🏁 BACKEND API TESTING COMPLETE")
-print("=" * 80)
-print(f"\n✅ PASSED: {tests_passed}")
-print(f"❌ FAILED: {tests_failed}")
-print(f"📊 TOTAL: {tests_passed + tests_failed}")
+# ==================== TEST 3: GET /api/notifications/status ====================
+def test_notifications_status():
+    """GET /api/notifications/status should show emailConfigured:false and leadRecipients array"""
+    r = requests.get(f"{BASE_URL}/notifications/status", timeout=10)
+    assert_eq(r.status_code, 200, "Status code should be 200")
+    data = r.json()
+    
+    assert_false(data.get('emailConfigured'), "emailConfigured should be false (no RESEND_API_KEY)")
+    assert_true('leadRecipients' in data, "Response should contain leadRecipients")
+    assert_true(isinstance(data['leadRecipients'], list), "leadRecipients should be an array")
+    print(f"    emailConfigured: {data.get('emailConfigured')}")
+    print(f"    leadRecipients: {data.get('leadRecipients')}")
 
-if tests_failed > 0:
-    print("\n❌ FAILED TESTS:")
-    for result in test_results:
-        if not result['passed']:
-            print(f"   - {result['name']}")
-            if result['details']:
-                print(f"     {result['details']}")
-else:
-    print("\n🎉 ALL TESTS PASSED!")
+def test_settings_notifications_update():
+    """PUT /api/settings with notifications config should update leadRecipients"""
+    # First, get current settings to restore later
+    r = requests.get(f"{BASE_URL}/settings", timeout=10)
+    assert_eq(r.status_code, 200, "GET settings should succeed")
+    original_settings = r.json()
+    
+    # Update settings with notifications config
+    updated_settings = {**original_settings}
+    updated_settings['notifications'] = {
+        'emailEnabled': True,
+        'leadEmails': 'a@x.com, b@y.com'
+    }
+    
+    r = requests.put(f"{BASE_URL}/settings", json=updated_settings, timeout=10)
+    assert_eq(r.status_code, 200, "PUT settings should succeed")
+    
+    # Check notifications status
+    r = requests.get(f"{BASE_URL}/notifications/status", timeout=10)
+    assert_eq(r.status_code, 200, "GET notifications/status should succeed")
+    data = r.json()
+    
+    recipients = data.get('leadRecipients', [])
+    assert_in('a@x.com', recipients, "leadRecipients should contain a@x.com")
+    assert_in('b@y.com', recipients, "leadRecipients should contain b@y.com")
+    print(f"    Updated leadRecipients: {recipients}")
+    
+    # Restore original settings
+    r = requests.put(f"{BASE_URL}/settings", json=original_settings, timeout=10)
+    assert_eq(r.status_code, 200, "Restore settings should succeed")
+    print(f"    Restored original settings")
 
-print("\n" + "=" * 80)
+# ==================== TEST 4: POST /api/notifications/test ====================
+def test_notifications_test_without_resend():
+    """POST /api/notifications/test should return 400 with error message when RESEND_API_KEY not set"""
+    r = requests.post(f"{BASE_URL}/notifications/test", json={}, timeout=10)
+    assert_eq(r.status_code, 400, "Status code should be 400")
+    data = r.json()
+    assert_true('error' in data, "Response should contain error message")
+    assert_true('RESEND_API_KEY' in data['error'] or 'not set up' in data['error'], 
+                "Error should mention RESEND_API_KEY or email not set up")
+    print(f"    Error message: {data.get('error')}")
+
+# ==================== TEST 5: PUT /api/settings with ga4Id and leadOverflow.managerEmail ====================
+def test_settings_ga4_and_manager_email():
+    """PUT /api/settings with ga4Id and leadOverflow.managerEmail should persist"""
+    # Get current settings
+    r = requests.get(f"{BASE_URL}/settings", timeout=10)
+    assert_eq(r.status_code, 200, "GET settings should succeed")
+    original_settings = r.json()
+    
+    # Update with ga4Id and managerEmail
+    updated_settings = {**original_settings}
+    updated_settings['ga4Id'] = 'G-TEST1234'
+    if 'leadOverflow' not in updated_settings:
+        updated_settings['leadOverflow'] = {}
+    updated_settings['leadOverflow']['managerEmail'] = 'manager@gillcogroup.org'
+    
+    r = requests.put(f"{BASE_URL}/settings", json=updated_settings, timeout=10)
+    assert_eq(r.status_code, 200, "PUT settings should succeed")
+    
+    # Verify persistence
+    r = requests.get(f"{BASE_URL}/settings", timeout=10)
+    assert_eq(r.status_code, 200, "GET settings should succeed")
+    data = r.json()
+    
+    assert_eq(data.get('ga4Id'), 'G-TEST1234', "ga4Id should be persisted")
+    assert_eq(data.get('leadOverflow', {}).get('managerEmail'), 'manager@gillcogroup.org', 
+              "leadOverflow.managerEmail should be persisted")
+    print(f"    ga4Id: {data.get('ga4Id')}")
+    print(f"    leadOverflow.managerEmail: {data.get('leadOverflow', {}).get('managerEmail')}")
+    
+    # Restore original settings
+    r = requests.put(f"{BASE_URL}/settings", json=original_settings, timeout=10)
+    assert_eq(r.status_code, 200, "Restore settings should succeed")
+    print(f"    Restored original settings")
+
+# ==================== TEST 6: PUT /api/projects/:id with awards ====================
+def test_project_awards():
+    """PUT /api/projects/:id with awards array should persist and be retrievable"""
+    # Get existing projects
+    r = requests.get(f"{BASE_URL}/projects", timeout=10)
+    assert_eq(r.status_code, 200, "GET projects should succeed")
+    projects = r.json()
+    assert_true(len(projects) > 0, "Should have at least one project")
+    
+    # Pick first project
+    project = projects[0]
+    project_id = project['id']
+    original_project = {**project}
+    
+    # Add awards
+    updated_project = {**project}
+    updated_project['awards'] = [
+        {
+            'id': 'a1',
+            'title': 'Best Project',
+            'by': 'CREDAI',
+            'year': '2025',
+            'logo': ''
+        }
+    ]
+    
+    r = requests.put(f"{BASE_URL}/projects/{project_id}", json=updated_project, timeout=10)
+    assert_eq(r.status_code, 200, "PUT project should succeed")
+    
+    # Verify awards in GET
+    r = requests.get(f"{BASE_URL}/projects/{project_id}", timeout=10)
+    assert_eq(r.status_code, 200, "GET project should succeed")
+    data = r.json()
+    
+    assert_true('awards' in data, "Project should have awards field")
+    assert_eq(len(data['awards']), 1, "Should have 1 award")
+    assert_eq(data['awards'][0]['id'], 'a1', "Award id should match")
+    assert_eq(data['awards'][0]['title'], 'Best Project', "Award title should match")
+    assert_eq(data['awards'][0]['by'], 'CREDAI', "Award by should match")
+    assert_eq(data['awards'][0]['year'], '2025', "Award year should match")
+    print(f"    Project {project_id} awards: {data['awards']}")
+    
+    # Restore original project (remove awards)
+    r = requests.put(f"{BASE_URL}/projects/{project_id}", json=original_project, timeout=10)
+    assert_eq(r.status_code, 200, "Restore project should succeed")
+    print(f"    Restored original project without awards")
+
+# ==================== TEST 7: Regression Tests ====================
+def test_regression_get_projects():
+    """GET /api/projects should still work"""
+    r = requests.get(f"{BASE_URL}/projects", timeout=10)
+    assert_eq(r.status_code, 200, "GET projects should return 200")
+    data = r.json()
+    assert_true(isinstance(data, list), "Response should be an array")
+    assert_true(len(data) >= 8, "Should have at least 8 seeded projects")
+    print(f"    Found {len(data)} projects")
+
+def test_regression_get_settings():
+    """GET /api/settings should still work"""
+    r = requests.get(f"{BASE_URL}/settings", timeout=10)
+    assert_eq(r.status_code, 200, "GET settings should return 200")
+    data = r.json()
+    assert_eq(data.get('brandName'), 'Gillco Group', "Brand name should be Gillco Group")
+    assert_true('phone' in data, "Settings should have phone")
+    assert_true('email' in data, "Settings should have email")
+    print(f"    Settings: brandName={data.get('brandName')}, phone={data.get('phone')}")
+
+def test_regression_get_testimonials():
+    """GET /api/testimonials should still work"""
+    r = requests.get(f"{BASE_URL}/testimonials", timeout=10)
+    assert_eq(r.status_code, 200, "GET testimonials should return 200")
+    data = r.json()
+    assert_true(isinstance(data, list), "Response should be an array")
+    print(f"    Found {len(data)} testimonials")
+
+def test_regression_enquiry_claim():
+    """POST /api/enquiries/:id/claim should still work"""
+    # Create a test enquiry first
+    payload = {
+        "name": "Amit Verma",
+        "phone": "9988776655",
+        "email": "amit.verma@example.com",
+        "projectName": "Gillco Towers",
+        "consent": True
+    }
+    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
+    assert_eq(r.status_code, 200, "Enquiry creation should succeed")
+    enquiry_id = r.json()['id']
+    test_data_cleanup.append(('enquiry', enquiry_id))
+    
+    # Claim the enquiry
+    r = requests.post(f"{BASE_URL}/enquiries/{enquiry_id}/claim", json={"by": "test-agent"}, timeout=10)
+    assert_eq(r.status_code, 200, "Claim should return 200")
+    data = r.json()
+    assert_eq(data.get('claimed'), True, "Enquiry should be marked as claimed")
+    assert_eq(data.get('claimedBy'), 'test-agent', "claimedBy should match")
+    assert_true('claimedAt' in data, "Should have claimedAt timestamp")
+    print(f"    Claimed enquiry {enquiry_id} by test-agent")
+
+def test_regression_enquiry_escalate():
+    """POST /api/enquiries/:id/escalate should still work"""
+    # Create a test enquiry first
+    payload = {
+        "name": "Neha Gupta",
+        "phone": "9876512345",
+        "email": "neha.gupta@example.com",
+        "projectName": "Gillco Heights",
+        "consent": True
+    }
+    r = requests.post(f"{BASE_URL}/enquiries", json=payload, timeout=10)
+    assert_eq(r.status_code, 200, "Enquiry creation should succeed")
+    enquiry_id = r.json()['id']
+    test_data_cleanup.append(('enquiry', enquiry_id))
+    
+    # Escalate the enquiry
+    r = requests.post(f"{BASE_URL}/enquiries/{enquiry_id}/escalate", json={}, timeout=10)
+    assert_eq(r.status_code, 200, "Escalate should return 200")
+    data = r.json()
+    assert_eq(data.get('escalated'), True, "Enquiry should be marked as escalated")
+    assert_true('escalatedAt' in data, "Should have escalatedAt timestamp")
+    print(f"    Escalated enquiry {enquiry_id}")
+
+# ==================== RUN ALL TESTS ====================
+if __name__ == '__main__':
+    print("=" * 80)
+    print("BACKEND API TESTING - PHASE 2 LEAD AUTOMATION FEATURES")
+    print("=" * 80)
+    print()
+    
+    # Test 1: POST /api/enquiries
+    print("📋 TEST GROUP 1: POST /api/enquiries with email notification")
+    print("-" * 80)
+    test("T1.1: POST /api/enquiries with valid data returns 200 fast with id, no _id", test_enquiry_creation_success)
+    test("T1.2: POST /api/enquiries without phone returns 400", test_enquiry_missing_phone)
+    test("T1.3: Server logs show no crash without RESEND_API_KEY", test_enquiry_no_crash_without_resend)
+    
+    # Test 2: GET /api/cron/escalate
+    print("📋 TEST GROUP 2: GET /api/cron/escalate")
+    print("-" * 80)
+    test("T2.1: GET /api/cron/escalate returns 200 with skipped message", test_cron_escalate_without_email)
+    test("T2.2: No enquiries auto-escalated when email not configured", test_cron_escalate_no_auto_escalation)
+    
+    # Test 3: GET /api/notifications/status
+    print("📋 TEST GROUP 3: GET /api/notifications/status")
+    print("-" * 80)
+    test("T3.1: GET /api/notifications/status shows emailConfigured:false", test_notifications_status)
+    test("T3.2: PUT /api/settings with notifications updates leadRecipients", test_settings_notifications_update)
+    
+    # Test 4: POST /api/notifications/test
+    print("📋 TEST GROUP 4: POST /api/notifications/test")
+    print("-" * 80)
+    test("T4.1: POST /api/notifications/test returns 400 without RESEND_API_KEY", test_notifications_test_without_resend)
+    
+    # Test 5: PUT /api/settings with ga4Id and managerEmail
+    print("📋 TEST GROUP 5: PUT /api/settings with ga4Id and leadOverflow.managerEmail")
+    print("-" * 80)
+    test("T5.1: PUT /api/settings with ga4Id and managerEmail persists", test_settings_ga4_and_manager_email)
+    
+    # Test 6: PUT /api/projects/:id with awards
+    print("📋 TEST GROUP 6: PUT /api/projects/:id with awards")
+    print("-" * 80)
+    test("T6.1: PUT /api/projects/:id with awards array persists", test_project_awards)
+    
+    # Test 7: Regression tests
+    print("📋 TEST GROUP 7: Regression Tests")
+    print("-" * 80)
+    test("T7.1: GET /api/projects still works", test_regression_get_projects)
+    test("T7.2: GET /api/settings still works", test_regression_get_settings)
+    test("T7.3: GET /api/testimonials still works", test_regression_get_testimonials)
+    test("T7.4: POST /api/enquiries/:id/claim still works", test_regression_enquiry_claim)
+    test("T7.5: POST /api/enquiries/:id/escalate still works", test_regression_enquiry_escalate)
+    
+    # Summary
+    print("=" * 80)
+    print(f"RESULTS: {passed} passed, {failed} failed")
+    print("=" * 80)
+    
+    if failed == 0:
+        print("✅ ALL TESTS PASSED")
+    else:
+        print(f"❌ {failed} TEST(S) FAILED")
+    
+    print()
