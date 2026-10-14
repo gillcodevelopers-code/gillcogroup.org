@@ -868,6 +868,43 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // ---------- HEALTH (used by uptime monitors + VPS watchdog) ----------
+    if (route === '/health' && method === 'GET') {
+      const t0 = Date.now();
+      await db.command({ ping: 1 });
+      const res = NextResponse.json({ ok: true, db: 'up', dbMs: Date.now() - t0, uptimeSec: Math.round(process.uptime()), at: new Date().toISOString() });
+      res.headers.set('Cache-Control', 'no-store');
+      return cors(res);
+    }
+
+    // ---------- ADMIN BACKUP (full JSON export of every collection) ----------
+    if (route === '/admin/backup' && method === 'GET') {
+      const pass = request.headers.get('x-admin-password') || '';
+      if (pass !== (process.env.ADMIN_PASSWORD || 'gillco2025')) {
+        return cors(NextResponse.json({ error: 'unauthorized' }, { status: 401 }));
+      }
+      const cols = (await db.listCollections({}, { nameOnly: true }).toArray())
+        .map(c => c.name).filter(n => !n.startsWith('system.')).sort();
+      const collections = {};
+      const counts = {};
+      for (const name of cols) {
+        const docs = await db.collection(name).find({}).toArray();
+        collections[name] = docs.map(strip);
+        counts[name] = docs.length;
+      }
+      const now = new Date();
+      const stamp = now.toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      const payload = { app: 'gillco-group', version: 1, createdAt: now.toISOString(), database: process.env.DB_NAME, counts, collections };
+      return new NextResponse(JSON.stringify(payload, null, 1), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="gillco-backup-${stamp}.json"`,
+          'Cache-Control': 'no-store, private',
+        },
+      });
+    }
+
     // ---------- ADMIN AUTH (simple passcode) ----------
     if (route === '/admin/login' && method === 'POST') {
       const body = await request.json();

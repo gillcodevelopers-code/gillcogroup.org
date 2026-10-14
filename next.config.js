@@ -75,6 +75,11 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=0, s-maxage=60, stale-while-revalidate=600' },
         ],
       },
+      // Private / live endpoints must never be cached by any CDN or proxy (last match wins)
+      ...['/api/admin/:path*', '/api/health', '/api/enquiries', '/api/enquiries/:path*', '/api/cron/:path*', '/api/notifications/:path*', '/api/history', '/api/history/:path*'].map(source => ({
+        source,
+        headers: [{ key: 'Cache-Control', value: 'no-store, private' }],
+      })),
     ];
   },
 };

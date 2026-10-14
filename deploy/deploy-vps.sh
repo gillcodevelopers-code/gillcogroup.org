@@ -109,6 +109,8 @@ chmod +x "$APP_DIR"/deploy/*.sh
 cat > /etc/cron.d/gillco <<CRON
 # Lead auto-escalation check every minute
 * * * * * root curl -fsS -m 50 -H "Authorization: Bearer $(getenv CRON_SECRET)" http://127.0.0.1:3000/api/cron/escalate >/dev/null 2>&1
+# Uptime watchdog every 2 minutes (auto-restart + email alerts)
+*/2 * * * * root bash $APP_DIR/deploy/watchdog.sh >> /var/log/gillco/watchdog.log 2>&1
 # Nightly database backup at 02:30 (keeps 14 days)
 30 2 * * * root bash $APP_DIR/deploy/backup-mongo.sh >> /var/log/gillco/backup.log 2>&1
 CRON

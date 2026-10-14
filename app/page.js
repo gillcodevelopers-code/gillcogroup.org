@@ -2661,6 +2661,24 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     } catch { toast.error('Invalid password'); }
   };
 
+  const [backingUp, setBackingUp] = useState(false);
+  const downloadBackup = async () => {
+    setBackingUp(true);
+    try {
+      const res = await fetch('/api/admin/backup', { headers: { 'x-admin-password': pass }, cache: 'no-store' });
+      if (res.status === 401) throw new Error('Session expired — please log out and log in again');
+      if (!res.ok) throw new Error('Backup failed');
+      const blob = await res.blob();
+      const name = (res.headers.get('content-disposition') || '').match(/filename="([^"]+)"/)?.[1] || `gillco-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success(`Backup downloaded (${(blob.size / 1024).toFixed(0)} KB) — keep it somewhere safe`);
+    } catch (e) { toast.error(e?.message || 'Backup failed'); }
+    setBackingUp(false);
+  };
+
   const saveProject = async (p) => {
     try {
       const updated = await api(`/projects/${p.id}`, { method: 'PUT', body: JSON.stringify(p) });
@@ -2732,7 +2750,12 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
             <h1 className="font-serif text-4xl text-gillco-green">Content Manager</h1>
             <p className="text-sm text-slate-500">Edit every piece of content on the site — no code needed.</p>
           </div>
-          <button onClick={() => setAuthed(false)} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={downloadBackup} disabled={backingUp} data-testid="admin-backup-btn" title="Downloads a full copy of all projects, enquiries, settings, team, news, posts and testimonials" className="px-4 py-2 bg-gillco-green text-white rounded-full text-sm inline-flex items-center gap-2 hover:bg-gillco-green-dark disabled:opacity-60">
+              <Download className="w-4 h-4" /> {backingUp ? 'Preparing…' : 'Download Backup'}
+            </button>
+            <button onClick={() => { setAuthed(false); setPass(''); }} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-6 flex-wrap">

@@ -88,7 +88,33 @@ DOMAIN=gillcogroup.org WWW=1 EMAIL=you@gillcogroup.org bash deploy/deploy-vps.sh
    - Optionally delete the `new` DNS record.
    - Optionally pause the Atlas cluster.
 
-## 6. Day-to-day
+## 6. Turn on email alerts (leads + "site is down")
+
+1. Create a free account at https://resend.com.
+2. Go to **Domains → Add `gillcogroup.org`** and add the DNS records it shows in hPanel. Wait until it says *Verified*.
+3. Go to **API Keys → Create** and copy the key (starts with `re_`).
+4. On the VPS run `nano /var/www/gillco/.env.production` and add:
+   ```
+   RESEND_API_KEY=re_xxxxxxxx
+   RESEND_FROM=Gillco Alerts <alerts@gillcogroup.org>
+   LEAD_NOTIFY_EMAIL=sales@gillcogroup.org
+   ALERT_EMAIL=you@gillcogroup.org
+   ```
+5. Run `pm2 restart gillco-web`. Then run `bash deploy/watchdog.sh --test`; you should receive a test email.
+6. In Admin CMS → Settings → *Email Alerts*, add the lead emails and click **Send test email**.
+
+**How the "site is down" alert works:**
+- **On the server:** every 2 minutes it checks the website and the database. If either stops answering, it restarts them by itself and emails you that it went down and whether the restart fixed it. When the site is back, you get a "back UP" email. It also warns you when the disk is 90% full.
+- **Outside watcher, for when the whole VPS is off:** create a free account at https://uptimerobot.com.
+  - Add a new monitor: type **HTTP(s)**, URL `https://gillcogroup.org/api/health`, check every 5 minutes, alert by email.
+  - Optional: install the UptimeRobot mobile app to get push notifications.
+
+## 7. Backups
+
+- **Admin CMS → Download Backup** (top right) downloads a fresh `.json` copy of every project, enquiry, setting, team member, news item, post and testimonial. Do this once a week and keep the file in Google Drive.
+- The server also takes an automatic nightly backup, kept 14 days in `/var/backups/gillco`.
+
+## 8. Day-to-day
 
 | Task | Command (run inside `/var/www/gillco`) |
 |------|------------------------------|
