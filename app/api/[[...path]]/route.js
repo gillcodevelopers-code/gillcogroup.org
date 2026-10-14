@@ -1,4 +1,5 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, GridFSBucket } from 'mongodb';
+import { Readable } from 'stream';
 import { v4 as uuidv4 } from 'uuid';
 import { NextResponse, after as runAfter } from 'next/server';
 import { notifyNewLead, runEscalation, emailConfigured, sendEmail, leadRecipients } from '@/lib/leadMailer';
@@ -398,6 +399,35 @@ async function handleRoute(request, { params }) {
     const db = await connectToMongo();
     await ensureSeed(db);
 
+    // ---------- MEDIA (files stored in MongoDB GridFS) ----------
+    if (route.startsWith('/media/') && (method === 'GET' || method === 'HEAD')) {
+      const fname = decodeURIComponent(route.split('/')[2] || '');
+      const id = fname.split('.')[0];
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      const fileDoc = await db.collection('media.files').findOne({ _id: id });
+      if (!fileDoc) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      const size = fileDoc.length;
+      const headers = {
+        'Content-Type': fileDoc.metadata?.mime || 'application/octet-stream',
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Accept-Ranges': 'bytes',
+        'Content-Disposition': `inline; filename="${String(fileDoc.metadata?.originalName || fname).replace(/[^\w.\- ]/g, '_')}"`,
+      };
+      if (method === 'HEAD') return new NextResponse(null, { status: 200, headers: { ...headers, 'Content-Length': String(size) } });
+      const bucket = new GridFSBucket(db, { bucketName: 'media' });
+      const range = request.headers.get('range');
+      const m = range && /bytes=(\d*)-(\d*)/.exec(range);
+      if (m && size > 0) {
+        const start = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
+        const end = m[1] && m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
+        if (start >= size || start > end) return new NextResponse(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+        const stream = bucket.openDownloadStream(id, { start, end: end + 1 });
+        return new NextResponse(Readable.toWeb(stream), { status: 206, headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) } });
+      }
+      const stream = bucket.openDownloadStream(id);
+      return new NextResponse(Readable.toWeb(stream), { status: 200, headers: { ...headers, 'Content-Length': String(size) } });
+    }
+
     // ---------- UPLOAD ----------
     if (route === '/upload' && method === 'POST') {
       const ct = (request.headers.get('content-type') || '').toLowerCase();
@@ -413,11 +443,26 @@ async function handleRoute(request, { params }) {
       const buffer = Buffer.from(bytes);
       const original = file.name || 'file';
       const ext = (original.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const fname = `${uuidv4()}.${ext || 'bin'}`;
-      const uploadDir = nodePath.join(process.cwd(), 'public', 'uploads');
-      try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
-      await fs.promises.writeFile(nodePath.join(uploadDir, fname), buffer);
-      const url = `/uploads/${fname}`;
+      const id = uuidv4();
+      const fname = `${id}.${ext || 'bin'}`;
+      const mime = file.type || 'application/octet-stream';
+      let url;
+      if ((process.env.UPLOAD_STORAGE || 'db').toLowerCase() === 'disk') {
+        // VPS / persistent disk mode
+        const uploadDir = nodePath.join(process.cwd(), 'public', 'uploads');
+        try { fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
+        await fs.promises.writeFile(nodePath.join(uploadDir, fname), buffer);
+        url = `/uploads/${fname}`;
+      } else {
+        // Default: store inside MongoDB (GridFS) — survives redeploys on Hostinger Cloud / Vercel
+        const bucket = new GridFSBucket(db, { bucketName: 'media' });
+        await new Promise((resolve, reject) => {
+          const up = bucket.openUploadStreamWithId(id, fname, { metadata: { mime, originalName: original, size: buffer.length, uploadedAt: new Date().toISOString() } });
+          up.once('finish', resolve).once('error', reject);
+          up.end(buffer);
+        });
+        url = `/api/media/${fname}`;
+      }
       return cors(NextResponse.json({ url, filename: original, size: buffer.length, mime: file.type || 'application/octet-stream' }));
     }
 
@@ -884,7 +929,7 @@ async function handleRoute(request, { params }) {
         return cors(NextResponse.json({ error: 'unauthorized' }, { status: 401 }));
       }
       const cols = (await db.listCollections({}, { nameOnly: true }).toArray())
-        .map(c => c.name).filter(n => !n.startsWith('system.')).sort();
+        .map(c => c.name).filter(n => !n.startsWith('system.') && !n.startsWith('media.') && !n.startsWith('__restore')).sort();
       const collections = {};
       const counts = {};
       for (const name of cols) {

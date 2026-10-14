@@ -1,3 +1,5 @@
+> **On the Cloud Startup / Business plan (no VPS)? Use [`HOSTINGER-CLOUD.md`](./HOSTINGER-CLOUD.md) instead.**
+
 # Moving Gillco Group from Vercel to Hostinger (VPS + MongoDB on the same server)
 
 **Plan:** set the new server up on a test address (`new.gillcogroup.org`) and check everything there.

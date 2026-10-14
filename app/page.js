@@ -4122,7 +4122,7 @@ function MediaUploader({ label, value, onChange, accept = 'image/*', hint = 'PNG
     if (file) upload(file);
   };
 
-  const isImage = value && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(value) || value?.startsWith('http') || value?.startsWith('/uploads/');
+  const isImage = value && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(value) || value?.startsWith('http') || value?.startsWith('/uploads/') || value?.startsWith('/api/media/');
 
   return (
     <div>

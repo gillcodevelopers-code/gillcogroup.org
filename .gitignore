@@ -93,3 +93,8 @@ node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node
 credentials.json
 *.key
 .credentials
+
+# keep env templates (no secrets) in git
+!.env.example
+!.env.production.example
+!.env.hostinger.example

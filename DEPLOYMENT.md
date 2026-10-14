@@ -7,7 +7,7 @@ You have **two publishing paths**. Pick the one that fits your Hostinger plan.
 | **A. Vercel + Hostinger domain** *(recommended)* | You want free hosting + fastest CDN | **₹0/mo** | ~30 min |
 | **B. Hostinger VPS (KVM 1+)** | You want everything on Hostinger | ~₹399/mo | ~1 hour |
 
-> 👉 **Moving to Hostinger? Follow [`HOSTINGER.md`](./HOSTINGER.md)** — VPS with MongoDB on the same server, test address first, then domain switch. (Business/Cloud Node.js plans are covered there too, with Atlas.)
+> 👉 **Hostinger Cloud Startup (your plan): follow [`HOSTINGER-CLOUD.md`](./HOSTINGER-CLOUD.md).** VPS: follow [`HOSTINGER.md`](./HOSTINGER.md) — VPS with MongoDB on the same server, test address first, then domain switch. (Business/Cloud Node.js plans are covered there too, with Atlas.)
 
 ---
 
