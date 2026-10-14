@@ -1,37 +1,15 @@
-import { MongoClient, GridFSBucket } from 'mongodb';
-import { Readable } from 'stream';
+import { getDb, putMedia, getMediaMeta, openMedia, mediaBackend, dbProvider } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { NextResponse, after as runAfter } from 'next/server';
 import { notifyNewLead, runEscalation, emailConfigured, sendEmail, leadRecipients } from '@/lib/leadMailer';
 import fs from 'fs';
 import nodePath from 'path';
 
-let clientPromise;
-let db;
 let seeded = false;
 
-// Clean common copy-paste mistakes in env values (quotes, spaces, "DB_NAME=" prefix)
-function cleanEnv(v) {
-  return String(v || '').trim().replace(/^[A-Z_]+=/, '').replace(/^["']|["']$/g, '').trim();
-}
-
 async function connectToMongo() {
-  if (!clientPromise) {
-    const url = cleanEnv(process.env.MONGO_URL);
-    const dbName = cleanEnv(process.env.DB_NAME);
-    if (!url) throw new Error('MONGO_URL is not set in the hosting environment variables');
-    if (!dbName) throw new Error('DB_NAME is not set in the hosting environment variables');
-    if (/[./\\\s"$*<>:|?]/.test(dbName)) {
-      throw new Error('DB_NAME must be only the database name (e.g. gillco) - not the cluster address or connection string');
-    }
-    const c = new MongoClient(url);
-    clientPromise = c.connect().then((connected) => {
-      db = connected.db(dbName);
-      return connected;
-    }).catch((err) => { clientPromise = null; throw err; });
-  }
-  await clientPromise;
-  return db;
+  // name kept for compatibility - returns MongoDB or Supabase/Postgres depending on env
+  return getDb();
 }
 
 function cors(res) {
@@ -411,33 +389,32 @@ async function handleRoute(request, { params }) {
     const db = await connectToMongo();
     await ensureSeed(db);
 
-    // ---------- MEDIA (files stored in MongoDB GridFS) ----------
+    // ---------- MEDIA (uploaded files: GridFS / Supabase Storage / Postgres) ----------
     if (route.startsWith('/media/') && (method === 'GET' || method === 'HEAD')) {
       const fname = decodeURIComponent(route.split('/')[2] || '');
       const id = fname.split('.')[0];
       if (!/^[0-9a-f-]{36}$/i.test(id)) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
-      const fileDoc = await db.collection('media.files').findOne({ _id: id });
-      if (!fileDoc) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
-      const size = fileDoc.length;
+      const meta = await getMediaMeta(db, id);
+      if (!meta) return cors(NextResponse.json({ error: 'not found' }, { status: 404 }));
+      const size = meta.size;
       const headers = {
-        'Content-Type': fileDoc.metadata?.mime || 'application/octet-stream',
+        'Content-Type': meta.mime || 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000, immutable',
         'Accept-Ranges': 'bytes',
-        'Content-Disposition': `inline; filename="${String(fileDoc.metadata?.originalName || fname).replace(/[^\w.\- ]/g, '_')}"`,
+        'Content-Disposition': `inline; filename="${String(meta.originalName || fname).replace(/[^\w.\- ]/g, '_')}"`,
       };
       if (method === 'HEAD') return new NextResponse(null, { status: 200, headers: { ...headers, 'Content-Length': String(size) } });
-      const bucket = new GridFSBucket(db, { bucketName: 'media' });
       const range = request.headers.get('range');
       const m = range && /bytes=(\d*)-(\d*)/.exec(range);
-      if (m && size > 0) {
+      if (m && size > 0 && (m[1] || m[2])) {
         const start = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
         const end = m[1] && m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1;
         if (start >= size || start > end) return new NextResponse(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
-        const stream = bucket.openDownloadStream(id, { start, end: end + 1 });
-        return new NextResponse(Readable.toWeb(stream), { status: 206, headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) } });
+        const body = await openMedia(db, meta, start, end);
+        return new NextResponse(body, { status: 206, headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) } });
       }
-      const stream = bucket.openDownloadStream(id);
-      return new NextResponse(Readable.toWeb(stream), { status: 200, headers: { ...headers, 'Content-Length': String(size) } });
+      const body = size > 0 ? await openMedia(db, meta, 0, size - 1) : Buffer.alloc(0);
+      return new NextResponse(body, { status: 200, headers: { ...headers, 'Content-Length': String(size) } });
     }
 
     // ---------- UPLOAD ----------
@@ -466,13 +443,8 @@ async function handleRoute(request, { params }) {
         await fs.promises.writeFile(nodePath.join(uploadDir, fname), buffer);
         url = `/uploads/${fname}`;
       } else {
-        // Default: store inside MongoDB (GridFS) — survives redeploys on Hostinger Cloud / Vercel
-        const bucket = new GridFSBucket(db, { bucketName: 'media' });
-        await new Promise((resolve, reject) => {
-          const up = bucket.openUploadStreamWithId(id, fname, { metadata: { mime, originalName: original, size: buffer.length, uploadedAt: new Date().toISOString() } });
-          up.once('finish', resolve).once('error', reject);
-          up.end(buffer);
-        });
+        // Default: stored in the database / Supabase Storage - survives redeploys on Hostinger Cloud
+        await putMedia(db, { id, fname, mime, originalName: original, buffer });
         url = `/api/media/${fname}`;
       }
       return cors(NextResponse.json({ url, filename: original, size: buffer.length, mime: file.type || 'application/octet-stream' }));
@@ -929,7 +901,7 @@ async function handleRoute(request, { params }) {
     if (route === '/health' && method === 'GET') {
       const t0 = Date.now();
       await db.command({ ping: 1 });
-      const res = NextResponse.json({ ok: true, db: 'up', dbMs: Date.now() - t0, uptimeSec: Math.round(process.uptime()), at: new Date().toISOString() });
+      const res = NextResponse.json({ ok: true, db: 'up', provider: db.provider === 'supabase' ? 'supabase' : 'mongo', media: mediaBackend(db), dbMs: Date.now() - t0, uptimeSec: Math.round(process.uptime()), at: new Date().toISOString() });
       res.headers.set('Cache-Control', 'no-store');
       return cors(res);
     }

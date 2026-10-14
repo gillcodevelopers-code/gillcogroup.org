@@ -1,3 +1,5 @@
+> **Moving the database to Supabase? Follow [`SUPABASE.md`](./SUPABASE.md).** The Hostinger steps below stay the same.
+
 # Gillco Group on Hostinger **Cloud Startup** (Node.js Web App + MongoDB Atlas)
 
 The Cloud Startup plan runs Node.js apps, but you get **no server login and no MongoDB of its own**. So:

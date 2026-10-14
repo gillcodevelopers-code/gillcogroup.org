@@ -16,16 +16,13 @@ export const metadata = {
 
 async function getPosts() {
   try {
-    const { MongoClient } = await import('mongodb');
-    const client = new MongoClient(process.env.MONGO_URL);
-    await client.connect();
-    const db = client.db(String(process.env.DB_NAME || 'gillco').trim().replace(/^["']|["']$/g, ''));
+    const { getDb } = await import('@/lib/db');
+    const db = await getDb();
     const items = await db
       .collection('posts')
       .find({ published: { $ne: false } })
       .sort({ publishedAt: -1, createdAt: -1 })
       .toArray();
-    await client.close();
     return items.map((p) => ({ ...p, _id: undefined }));
   } catch (e) {
     console.error('blog fetch fail', e?.message);
