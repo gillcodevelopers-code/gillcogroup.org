@@ -1,3 +1,4 @@
+import { loadAuthState, setStoredPassword, createResetToken, checkResetToken, consumeResetToken } from '@/lib/adminAuth';
 import { adminConfigured, checkCredentials, issueToken, getAdminSession, isAdmin, sessionCookie, clearCookie, clientIp, loginLockedFor, recordLoginFailure, recordLoginSuccess, adminCreds } from '@/lib/adminAuth';
 import { buildXlsx } from '@/lib/xlsx';
 import { sanitizeContent } from '@/lib/safeText';
@@ -389,10 +390,14 @@ async function handleRoute(request, { params }) {
   const method = request.method;
 
   // ---------- ADMIN GATE: every write + private read needs a valid admin session ----------
-  const PUBLIC_WRITES = new Set(['POST /enquiries', 'POST /admin/login', 'POST /admin/logout']);
+  const PUBLIC_WRITES = new Set(['POST /enquiries', 'POST /admin/login', 'POST /admin/logout', 'POST /admin/forgot', 'POST /admin/reset']);
   const isCron = route === '/cron/escalate'; // protected by CRON_SECRET below
-  const privateRead = /^\/(enquiries|history|admin|notifications)(\/|$)/.test(route) && route !== '/admin/session';
+  const privateRead = /^\/(enquiries|history|admin|notifications)(\/|$)/.test(route) && !['/admin/session', '/admin/reset/check'].includes(route);
   const needsAdmin = !isCron && (['GET', 'HEAD'].includes(method) ? privateRead : !PUBLIC_WRITES.has(`${method} ${route}`));
+  if (needsAdmin || route.startsWith('/admin/')) {
+    // a password set via "Forgot password" lives in the database
+    await loadAuthState(await getDb().catch(() => null)).catch(() => {});
+  }
   if (needsAdmin && !isAdmin(request)) {
     return cors(NextResponse.json({ error: 'Please log in to the Admin CMS', login: true }, { status: 401 }));
   }
@@ -424,6 +429,61 @@ async function handleRoute(request, { params }) {
     r.headers.set('Cache-Control', 'no-store');
     return cors(r);
   }
+  // ---------- FORGOT / RESET ADMIN PASSWORD (link emailed to ADMIN_EMAIL) ----------
+  if (route === '/admin/forgot' && method === 'POST') {
+    const ip = clientIp(request);
+    const locked = loginLockedFor(`forgot:${ip}`);
+    if (locked) return cors(NextResponse.json({ ok: false, error: `Too many requests. Try again in ${locked} min.` }, { status: 429 }));
+    recordLoginFailure(`forgot:${ip}`); // max 5 requests per 15 min per connection
+    const adminEmail = adminCreds().email;
+    if (!adminEmail) return cors(NextResponse.json({ ok: false, error: 'Password reset is not set up: add ADMIN_EMAIL in the hosting environment variables' }, { status: 503 }));
+    if (!emailConfigured()) return cors(NextResponse.json({ ok: false, error: 'Email sending is not set up yet (RESEND_API_KEY). Change ADMIN_PASSWORD in hPanel instead.' }, { status: 503 }));
+    const body = await request.json().catch(() => ({}));
+    const generic = { ok: true, message: `If that is the admin email, a reset link has been sent. It expires in 30 minutes.` };
+    if (String(body.email || '').trim().toLowerCase() !== adminEmail) return cors(NextResponse.json(generic));
+    try {
+      const db = await getDb();
+      const token = await createResetToken(db);
+      const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+      const proto = (request.headers.get('x-forwarded-proto') || 'https').split(',')[0];
+      const base = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_BASE_URL || `${proto}://${host}`).replace(/\/+$/, '');
+      const link = `${base}/?admin-reset=${encodeURIComponent(token)}`;
+      const r = await sendEmail({
+        to: [adminEmail],
+        subject: 'Reset your Gillco Admin CMS password',
+        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1f2937">
+          <h2 style="color:#0b4d3b;margin:0 0 12px">Reset your Admin CMS password</h2>
+          <p>Someone (hopefully you) asked to reset the Gillco Group Admin CMS password.</p>
+          <p style="margin:24px 0"><a href="${link}" style="background:#0b4d3b;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Set a new password</a></p>
+          <p style="font-size:13px;color:#6b7280">This link works once and expires in 30 minutes. Requested from IP ${ip.replace(/[^\w.:-]/g, '')}.<br/>If you did not ask for this, ignore this email - your password stays the same.</p></div>`,
+      });
+      if (r?.error || r?.skipped) console.error('[admin/forgot] email not sent', r);
+    } catch (err) { console.error('[admin/forgot]', err?.message); }
+    return cors(NextResponse.json(generic));
+  }
+  if (route === '/admin/reset/check' && method === 'GET') {
+    const token = new URL(request.url).searchParams.get('token') || '';
+    const db = await getDb().catch(() => null);
+    const valid = db ? await checkResetToken(db, token).catch(() => false) : false;
+    const r = NextResponse.json({ valid });
+    r.headers.set('Cache-Control', 'no-store');
+    return cors(r);
+  }
+  if (route === '/admin/reset' && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const pw = String(body.password || '');
+    if (pw.length < 10 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw)) {
+      return cors(NextResponse.json({ ok: false, error: 'Use at least 10 characters with letters and numbers' }, { status: 400 }));
+    }
+    const db = await getDb();
+    if (!(await consumeResetToken(db, body.token))) {
+      return cors(NextResponse.json({ ok: false, error: 'This reset link is invalid, already used or expired. Request a new one.' }, { status: 400 }));
+    }
+    await setStoredPassword(db, pw);
+    recordLoginSuccess(clientIp(request));
+    return cors(NextResponse.json({ ok: true, message: 'Password changed. Log in with your new password.' }));
+  }
+
   if (route === '/admin/logout' && method === 'POST') {
     const r = NextResponse.json({ ok: true });
     r.headers.set('Set-Cookie', clearCookie(request));
@@ -991,7 +1051,7 @@ async function handleRoute(request, { params }) {
     // ---------- ADMIN BACKUP (full JSON export of every collection) ----------
     if (route === '/admin/backup' && method === 'GET') {
       const cols = (await db.listCollections({}, { nameOnly: true }).toArray())
-        .map(c => c.name).filter(n => !n.startsWith('system.') && !n.startsWith('media.') && !n.startsWith('__restore')).sort();
+        .map(c => c.name).filter(n => !n.startsWith('system.') && !n.startsWith('media.') && !n.startsWith('__restore') && n !== 'admin_auth').sort();
       const collections = {};
       const counts = {};
       for (const name of cols) {
@@ -1092,7 +1152,7 @@ async function handleRoute(request, { params }) {
       try {
         const src = client.db(dbName);
         const names = (await src.listCollections({}, { nameOnly: true }).toArray())
-          .map(c => c.name).filter(n => /^[A-Za-z0-9_-]{1,60}$/.test(n) && !n.startsWith('__restore')).sort();
+          .map(c => c.name).filter(n => /^[A-Za-z0-9_-]{1,60}$/.test(n) && !n.startsWith('__restore') && n !== 'admin_auth').sort();
         if (!names.length) return cors(NextResponse.json({ error: `Database "${dbName}" has no collections - check the database name (Atlas -> Browse Collections)` }, { status: 400 }));
         if (!names.includes('projects') && !names.includes('settings')) return cors(NextResponse.json({ error: `Database "${dbName}" has no projects/settings - is this the right database?` }, { status: 400 }));
         const collections = {};
@@ -1141,7 +1201,7 @@ async function handleRoute(request, { params }) {
         return cors(NextResponse.json({ error: 'This is not a Gillco backup file' }, { status: 400 }));
       }
       const NAME_OK = /^[A-Za-z0-9_-]{1,60}$/;
-      const entries = Object.entries(payload.collections).filter(([n, docs]) => NAME_OK.test(n) && !n.startsWith('system.') && !n.startsWith('__restore') && Array.isArray(docs));
+      const entries = Object.entries(payload.collections).filter(([n, docs]) => NAME_OK.test(n) && !n.startsWith('system.') && !n.startsWith('__restore') && n !== 'admin_auth' && Array.isArray(docs));
       if (entries.length === 0) return cors(NextResponse.json({ error: 'Backup contains no data' }, { status: 400 }));
       if (!entries.some(([n]) => n === 'projects' || n === 'settings')) {
         return cors(NextResponse.json({ error: 'Backup is missing projects/settings — refusing to restore' }, { status: 400 }));

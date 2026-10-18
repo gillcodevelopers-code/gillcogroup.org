@@ -320,6 +320,7 @@ async function imgToDataUrl(url) {
 /* ============================ MAIN APP ============================ */
 function App() {
   const [view, setView] = useState('home'); // home | projects | about | team | news | contact | admin
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('admin-reset')) setView('admin'); }, []);
   const [settings, setSettings] = useState(null);
   const [projects, setProjects] = useState([]);
   const [news, setNews] = useState([]);
@@ -2792,6 +2793,40 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     } catch { toast.error('Save failed'); }
   };
 
+  // ---- Forgot / reset password
+  const [authMode, setAuthMode] = useState('login'); // login | forgot | reset
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [authMsg, setAuthMsg] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [resetValid, setResetValid] = useState(null);
+  const [newPass, setNewPass] = useState('');
+  const [newPass2, setNewPass2] = useState('');
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('admin-reset');
+    if (!t) return;
+    setResetToken(t); setAuthMode('reset');
+    api(`/admin/reset/check?token=${encodeURIComponent(t)}`).then(r => setResetValid(!!r.valid)).catch(() => setResetValid(false));
+  }, []);
+  const clearResetUrl = () => { const u = new URL(window.location.href); u.searchParams.delete('admin-reset'); window.history.replaceState({}, '', u.pathname + u.search + u.hash); };
+  const requestReset = async (e) => {
+    e.preventDefault(); setAuthBusy(true); setAuthMsg(''); setLoginError('');
+    try { const r = await api('/admin/forgot', { method: 'POST', body: JSON.stringify({ email: forgotEmail }) }); setAuthMsg(r.message || 'Check your inbox.'); }
+    catch (err) { setLoginError(err?.message || 'Could not send the reset email'); }
+    setAuthBusy(false);
+  };
+  const submitReset = async (e) => {
+    e.preventDefault(); setLoginError('');
+    if (newPass !== newPass2) { setLoginError('The two passwords do not match'); return; }
+    setAuthBusy(true);
+    try {
+      const r = await api('/admin/reset', { method: 'POST', body: JSON.stringify({ token: resetToken, password: newPass }) });
+      clearResetUrl(); setAuthMode('login'); setNewPass(''); setNewPass2(''); setAuthMsg(r.message || 'Password changed. Please log in.');
+      toast.success('Password changed');
+    } catch (err) { setLoginError(err?.message || 'Could not change the password'); }
+    setAuthBusy(false);
+  };
+
   if (!authed && checking) {
     return <section className="py-24 bg-gillco-cream min-h-screen flex items-center justify-center text-slate-500 text-sm">Checking session…</section>;
   }
@@ -2803,12 +2838,40 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
             <ShieldCheck className="w-10 h-10 text-gillco-gold mx-auto" />
             <h1 className="font-serif text-3xl text-gillco-green text-center mt-4">Admin Login</h1>
             <p className="text-center text-sm text-slate-500 mt-2">Content management for Gillco Group.</p>
+            {authMode === 'reset' ? (
+              <form onSubmit={submitReset} className="mt-6 space-y-3" data-testid="admin-reset-form">
+                <p className="text-sm font-semibold text-gillco-green text-center">Set a new password</p>
+                {resetValid === false ? (
+                  <p className="text-sm text-red-600 text-center" data-testid="reset-invalid">This reset link is invalid, already used or expired.</p>
+                ) : (
+                  <>
+                    <input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="New password (10+ characters, letters & numbers)" autoComplete="new-password" required minLength={10} data-testid="reset-new-password" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
+                    <input type="password" value={newPass2} onChange={e => setNewPass2(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" required data-testid="reset-new-password-2" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
+                  </>
+                )}
+                {loginError && <p className="text-sm text-red-600 text-center" data-testid="admin-login-error">{loginError}</p>}
+                {resetValid !== false && <button disabled={authBusy || resetValid === null} data-testid="reset-submit-btn" className="w-full py-3 gradient-emerald text-white rounded-full font-semibold disabled:opacity-60">{authBusy ? 'Saving…' : 'Save new password'}</button>}
+                <button type="button" onClick={() => { clearResetUrl(); setAuthMode(resetValid === false ? 'forgot' : 'login'); setLoginError(''); }} className="w-full text-xs text-slate-500 hover:text-gillco-green">{resetValid === false ? 'Request a new link' : 'Back to login'}</button>
+              </form>
+            ) : authMode === 'forgot' ? (
+              <form onSubmit={requestReset} className="mt-6 space-y-3" data-testid="admin-forgot-form">
+                <p className="text-sm text-slate-600 text-center">Enter the admin email. We'll send a reset link (valid 30 minutes).</p>
+                <input type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} placeholder="support@gillcogroup.org" autoComplete="email" required data-testid="forgot-email" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
+                {authMsg && <p className="text-sm text-emerald-700 text-center" data-testid="forgot-message">{authMsg}</p>}
+                {loginError && <p className="text-sm text-red-600 text-center" data-testid="admin-login-error">{loginError}</p>}
+                <button disabled={authBusy} data-testid="forgot-submit-btn" className="w-full py-3 gradient-emerald text-white rounded-full font-semibold disabled:opacity-60">{authBusy ? 'Sending…' : 'Send reset link'}</button>
+                <button type="button" onClick={() => { setAuthMode('login'); setAuthMsg(''); setLoginError(''); }} className="w-full text-xs text-slate-500 hover:text-gillco-green">Back to login</button>
+              </form>
+            ) : (
             <form onSubmit={login} className="mt-6 space-y-3">
+              {authMsg && <p className="text-sm text-emerald-700 text-center" data-testid="auth-message">{authMsg}</p>}
               <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Email or username" autoComplete="username" required data-testid="admin-username" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
               <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Password" autoComplete="current-password" required data-testid="admin-password" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
               {loginError && <p className="text-sm text-red-600 text-center" data-testid="admin-login-error">{loginError}</p>}
               <button disabled={loggingIn} data-testid="admin-login-btn" className="w-full py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60"><LogIn className="w-4 h-4" /> {loggingIn ? 'Signing in…' : 'Sign In'}</button>
+              <button type="button" onClick={() => { setAuthMode('forgot'); setLoginError(''); setAuthMsg(''); }} data-testid="forgot-link" className="w-full text-xs text-slate-500 hover:text-gillco-green">Forgot password?</button>
             </form>
+            )}
           </div>
         </div>
       </section>
