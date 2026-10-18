@@ -1,0 +1,36 @@
+# Replaces GitHub's starter "Node.js CI" (npm ci + Node 18), which cannot work for this Yarn project.
+name: Node.js CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]   # Next.js 15 + Hostinger use Node 20/22 (Node 18 is end-of-life)
+    steps:
+      - uses: actions/checkout@v5
+
+      - run: corepack enable
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          # no `cache:` - it fails when yarn.lock is not committed
+
+      - name: Install dependencies
+        run: |
+          if [ -f yarn.lock ]; then
+            yarn install --frozen-lockfile --non-interactive
+          else
+            yarn install --non-interactive
+          fi
+
+      - run: yarn build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
