@@ -18,7 +18,11 @@ const api = async (path, opts = {}) => {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   });
-  if (!res.ok) throw new Error((await res.json()).error || 'API error');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 401 && err.login && typeof window !== 'undefined') window.dispatchEvent(new Event('gillco:admin-logout'));
+    throw new Error(err.error || 'API error');
+  }
   return res.json();
 };
 
@@ -2642,7 +2646,24 @@ function ContactView({ settings, onSubmit }) {
 /* ============================ ADMIN (CMS) ============================ */
 function AdminView({ projects, setProjects, settings, setSettings, news, setNews, testimonials, setTestimonials }) {
   const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [adminUser, setAdminUser] = useState('');
+  const [username, setUsername] = useState('');
   const [pass, setPass] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  // Restore an existing session (httpOnly cookie) and react to expiry
+  useEffect(() => {
+    api('/admin/session').then(r => { setAuthed(!!r.authed); setAdminUser(r.user || ''); }).catch(() => {}).finally(() => setChecking(false));
+    const onExpired = () => { setAuthed(prev => { if (prev) toast.error('Session expired — please log in again'); return false; }); };
+    window.addEventListener('gillco:admin-logout', onExpired);
+    return () => window.removeEventListener('gillco:admin-logout', onExpired);
+  }, []);
+  const logout = async () => {
+    try { await api('/admin/logout', { method: 'POST' }); } catch {}
+    setAuthed(false); setPass(''); setAdminUser('');
+  };
   const [tab, setTab] = useState('projects');
   const [editing, setEditing] = useState(null);
   const [enquiries, setEnquiries] = useState([]);
@@ -2655,18 +2676,20 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
 
   const login = async (e) => {
     e.preventDefault();
+    setLoginError(''); setLoggingIn(true);
     try {
-      const r = await api('/admin/login', { method: 'POST', body: JSON.stringify({ password: pass }) });
-      if (r.ok) { setAuthed(true); toast.success('Welcome, admin'); }
-    } catch { toast.error('Invalid password'); }
+      const r = await api('/admin/login', { method: 'POST', body: JSON.stringify({ username, password: pass }) });
+      if (r.ok) { setAuthed(true); setAdminUser(r.user || username); setPass(''); toast.success('Welcome, admin'); }
+    } catch (err) { setLoginError(err?.message || 'Wrong username or password'); }
+    setLoggingIn(false);
   };
 
   const [backingUp, setBackingUp] = useState(false);
   const downloadBackup = async () => {
     setBackingUp(true);
     try {
-      const res = await fetch('/api/admin/backup', { headers: { 'x-admin-password': pass }, cache: 'no-store' });
-      if (res.status === 401) throw new Error('Session expired — please log out and log in again');
+      const res = await fetch('/api/admin/backup', { cache: 'no-store' });
+      if (res.status === 401) { window.dispatchEvent(new Event('gillco:admin-logout')); throw new Error('Session expired — please log in again'); }
       if (!res.ok) throw new Error('Backup failed');
       const blob = await res.blob();
       const name = (res.headers.get('content-disposition') || '').match(/filename="([^"]+)"/)?.[1] || `gillco-backup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -2701,7 +2724,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
       await downloadBackup();
       const res = await fetch('/api/admin/restore', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-password': pass },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(restoreFile.data),
       });
       const r = await res.json().catch(() => ({}));
@@ -2746,6 +2769,9 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     } catch { toast.error('Save failed'); }
   };
 
+  if (!authed && checking) {
+    return <section className="py-24 bg-gillco-cream min-h-screen flex items-center justify-center text-slate-500 text-sm">Checking session…</section>;
+  }
   if (!authed) {
     return (
       <section className="py-24 bg-gillco-cream min-h-screen">
@@ -2755,9 +2781,10 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
             <h1 className="font-serif text-3xl text-gillco-green text-center mt-4">Admin Login</h1>
             <p className="text-center text-sm text-slate-500 mt-2">Content management for Gillco Group.</p>
             <form onSubmit={login} className="mt-6 space-y-3">
-              <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Admin password" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
-              <button className="w-full py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center justify-center gap-2"><LogIn className="w-4 h-4" /> Sign In</button>
-              <p className="text-xs text-center text-slate-400 mt-2">Default password: <code className="bg-slate-100 px-1 py-0.5 rounded">gillco2025</code></p>
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" autoComplete="username" required data-testid="admin-username" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
+              <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Password" autoComplete="current-password" required data-testid="admin-password" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
+              {loginError && <p className="text-sm text-red-600 text-center" data-testid="admin-login-error">{loginError}</p>}
+              <button disabled={loggingIn} data-testid="admin-login-btn" className="w-full py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60"><LogIn className="w-4 h-4" /> {loggingIn ? 'Signing in…' : 'Sign In'}</button>
             </form>
           </div>
         </div>
@@ -2794,7 +2821,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
             <button onClick={() => restoreInputRef.current?.click()} data-testid="admin-restore-btn" className="px-4 py-2 border border-gillco-green text-gillco-green rounded-full text-sm inline-flex items-center gap-2 hover:bg-white">
               <Clock className="w-4 h-4" /> Restore Backup
             </button>
-            <button onClick={() => { setAuthed(false); setPass(''); }} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
+            <button onClick={logout} data-testid="admin-logout-btn" title={adminUser ? `Signed in as ${adminUser}` : undefined} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
           </div>
         </div>
 

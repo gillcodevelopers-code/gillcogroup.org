@@ -1,3 +1,4 @@
+import { adminConfigured, checkCredentials, issueToken, getAdminSession, isAdmin, sessionCookie, clearCookie, clientIp, loginLockedFor, recordLoginFailure, recordLoginSuccess, adminCreds } from '@/lib/adminAuth';
 import { getDb, putMedia, getMediaMeta, openMedia, mediaBackend, dbProvider } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { NextResponse, after as runAfter } from 'next/server';
@@ -384,6 +385,48 @@ async function handleRoute(request, { params }) {
   const { path = [] } = await params;
   const route = `/${path.join('/')}`;
   const method = request.method;
+
+  // ---------- ADMIN GATE: every write + private read needs a valid admin session ----------
+  const PUBLIC_WRITES = new Set(['POST /enquiries', 'POST /admin/login', 'POST /admin/logout']);
+  const isCron = route === '/cron/escalate'; // protected by CRON_SECRET below
+  const privateRead = /^\/(enquiries|history|admin|notifications)(\/|$)/.test(route) && route !== '/admin/session';
+  const needsAdmin = !isCron && (['GET', 'HEAD'].includes(method) ? privateRead : !PUBLIC_WRITES.has(`${method} ${route}`));
+  if (needsAdmin && !isAdmin(request)) {
+    return cors(NextResponse.json({ error: 'Please log in to the Admin CMS', login: true }, { status: 401 }));
+  }
+
+  // Login / logout / session do not need the database
+  if (route === '/admin/session' && method === 'GET') {
+    const sess = getAdminSession(request);
+    const r = NextResponse.json({ authed: Boolean(sess), user: sess?.u || null, configured: adminConfigured() });
+    r.headers.set('Cache-Control', 'no-store');
+    return cors(r);
+  }
+  if (route === '/admin/login' && method === 'POST') {
+    const ip = clientIp(request);
+    const locked = loginLockedFor(ip);
+    if (locked) return cors(NextResponse.json({ ok: false, error: `Too many wrong attempts. Try again in ${locked} min.` }, { status: 429 }));
+    if (!adminConfigured()) {
+      return cors(NextResponse.json({ ok: false, error: 'Admin login is not set up: add ADMIN_USERNAME and ADMIN_PASSWORD in the hosting environment variables' }, { status: 503 }));
+    }
+    const body = await request.json().catch(() => ({}));
+    if (!checkCredentials(body.username, body.password)) {
+      const left = recordLoginFailure(ip);
+      const msg = loginLockedFor(ip) ? `Too many wrong attempts. Try again in ${loginLockedFor(ip)} min.` : `Wrong username or password${left > 0 && left < 3 ? ` (${left} attempts left)` : ''}`;
+      return cors(NextResponse.json({ ok: false, error: msg }, { status: loginLockedFor(ip) ? 429 : 401 }));
+    }
+    recordLoginSuccess(ip);
+    const user = adminCreds().user;
+    const r = NextResponse.json({ ok: true, user });
+    r.headers.set('Set-Cookie', sessionCookie(request, issueToken(user)));
+    r.headers.set('Cache-Control', 'no-store');
+    return cors(r);
+  }
+  if (route === '/admin/logout' && method === 'POST') {
+    const r = NextResponse.json({ ok: true });
+    r.headers.set('Set-Cookie', clearCookie(request));
+    return cors(r);
+  }
 
   try {
     const db = await connectToMongo();
@@ -901,17 +944,13 @@ async function handleRoute(request, { params }) {
     if (route === '/health' && method === 'GET') {
       const t0 = Date.now();
       await db.command({ ping: 1 });
-      const res = NextResponse.json({ ok: true, db: 'up', provider: db.provider === 'supabase' ? 'supabase' : 'mongo', media: mediaBackend(db), dbMs: Date.now() - t0, uptimeSec: Math.round(process.uptime()), at: new Date().toISOString() });
+      const res = NextResponse.json({ ok: true, db: 'up', provider: db.provider || 'mongo', media: mediaBackend(db), dbMs: Date.now() - t0, uptimeSec: Math.round(process.uptime()), at: new Date().toISOString() });
       res.headers.set('Cache-Control', 'no-store');
       return cors(res);
     }
 
     // ---------- ADMIN BACKUP (full JSON export of every collection) ----------
     if (route === '/admin/backup' && method === 'GET') {
-      const pass = request.headers.get('x-admin-password') || '';
-      if (pass !== (process.env.ADMIN_PASSWORD || 'gillco2025')) {
-        return cors(NextResponse.json({ error: 'unauthorized' }, { status: 401 }));
-      }
       const cols = (await db.listCollections({}, { nameOnly: true }).toArray())
         .map(c => c.name).filter(n => !n.startsWith('system.') && !n.startsWith('media.') && !n.startsWith('__restore')).sort();
       const collections = {};
@@ -936,10 +975,6 @@ async function handleRoute(request, { params }) {
 
     // ---------- ADMIN RESTORE (replace collections from a backup file) ----------
     if (route === '/admin/restore' && method === 'POST') {
-      const pass = request.headers.get('x-admin-password') || '';
-      if (pass !== (process.env.ADMIN_PASSWORD || 'gillco2025')) {
-        return cors(NextResponse.json({ error: 'unauthorized' }, { status: 401 }));
-      }
       let payload;
       try { payload = await request.json(); } catch { return cors(NextResponse.json({ error: 'File is not valid JSON' }, { status: 400 })); }
       if (payload?.app !== 'gillco-group' || !payload?.collections || typeof payload.collections !== 'object') {
@@ -976,14 +1011,6 @@ async function handleRoute(request, { params }) {
         }
       }
       return cors(NextResponse.json({ ok: Object.keys(failed).length === 0, restored, failed, backupCreatedAt: payload.createdAt || null }));
-    }
-
-    // ---------- ADMIN AUTH (simple passcode) ----------
-    if (route === '/admin/login' && method === 'POST') {
-      const body = await request.json();
-      const pass = body.password || '';
-      const ok = pass === (process.env.ADMIN_PASSWORD || 'gillco2025');
-      return cors(NextResponse.json({ ok }, { status: ok ? 200 : 401 }));
     }
 
     return cors(NextResponse.json({ error: `Route ${route} not found` }, { status: 404 }));

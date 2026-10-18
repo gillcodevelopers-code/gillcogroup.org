@@ -1,3 +1,5 @@
+> **Using Hostinger's MySQL database (recommended)? Follow [`HOSTINGER-MYSQL.md`](./HOSTINGER-MYSQL.md).**
+
 # 🚀 Gillco Group — Production Deployment Guide
 
 You have **two publishing paths**. Pick the one that fits your Hostinger plan.

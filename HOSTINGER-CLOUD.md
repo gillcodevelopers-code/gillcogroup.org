@@ -1,3 +1,5 @@
+> **Using Hostinger's MySQL database (recommended)? Follow [`HOSTINGER-MYSQL.md`](./HOSTINGER-MYSQL.md).**
+
 > **Moving the database to Supabase? Follow [`SUPABASE.md`](./SUPABASE.md).** The Hostinger steps below stay the same.
 
 # Gillco Group on Hostinger **Cloud Startup** (Node.js Web App + MongoDB Atlas)

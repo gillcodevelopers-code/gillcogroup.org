@@ -75,6 +75,11 @@ setenv NEXT_PUBLIC_BASE_URL "https://$DOMAIN"
 CORS="https://$DOMAIN"; [ "$WWW" = "1" ] && CORS="$CORS,https://www.$DOMAIN"
 setenv CORS_ORIGINS "$CORS"
 [ -n "$(getenv CRON_SECRET)" ] || setenv CRON_SECRET "$(openssl rand -hex 24)"
+if [ -z "$(getenv ADMIN_USERNAME)" ]; then
+  read -rp '   Choose the Admin CMS username: ' AU
+  [ -n "$AU" ] || { echo '   Username cannot be empty'; exit 1; }
+  setenv ADMIN_USERNAME "$AU"
+fi
 if [ -z "$(getenv ADMIN_PASSWORD)" ] || [ "$(getenv ADMIN_PASSWORD)" = "CHANGE_ME_STRONG_PASSWORD" ]; then
   read -rsp '   Choose the Admin CMS password (same as on Vercel if you want to keep it): ' AP; echo
   [ -n "$AP" ] || { echo '   Password cannot be empty'; exit 1; }
