@@ -21,7 +21,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node-version }}
-          # no `cache:` - it fails when yarn.lock is not committed
+          # setup-node v5 turns on caching automatically because package.json has "packageManager";
+          # that cache needs yarn.lock (not in the repo), so switch it off.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: |

@@ -17,7 +17,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          # No `cache: yarn` - it fails the job when yarn.lock is not in the repo.
+          # setup-node v5 turns on caching automatically because package.json has "packageManager";
+          # that cache needs yarn.lock (not in the repo), so switch it off.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: |
