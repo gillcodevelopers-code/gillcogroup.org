@@ -48,7 +48,7 @@ cp .env.production.example .env
 yarn dev
 ```
 
-Open **http://localhost:3000**. Admin CMS: footer → **Admin CMS** (default password: `gillco2025`).
+Open **http://localhost:3000**. Admin CMS: footer → **Admin CMS** (default password: `<ADMIN_PASSWORD>`).
 
 ---
 

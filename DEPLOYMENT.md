@@ -100,7 +100,7 @@ pm2 restart gillco-web
 ---
 
 ## 🛡️ Post-launch checklist
-- [ ] Change admin password in `.env.production` (`ADMIN_PASSWORD`) — default is `gillco2025`
+- [ ] Change admin password in `.env.production` (`ADMIN_PASSWORD`) — default is `<ADMIN_PASSWORD>`
 - [ ] Test Admin CMS login at `/admin` (or footer link)
 - [ ] Submit `https://gillcogroup.org/sitemap.xml` to Google Search Console
 - [ ] Add Google Analytics 4 ID (`NEXT_PUBLIC_GA_ID`) and re-deploy

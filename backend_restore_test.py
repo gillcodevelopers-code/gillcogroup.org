@@ -22,7 +22,7 @@ def get_base_url():
     return 'http://localhost:3000/api'
 
 BASE_URL = get_base_url()
-ADMIN_PASSWORD = 'gillco2025'
+ADMIN_PASSWORD = '<ADMIN_PASSWORD>'
 print(f"🔗 Testing against: {BASE_URL}\n")
 
 # Test counters

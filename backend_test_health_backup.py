@@ -104,7 +104,7 @@ def test_backup_wrong_password():
 
 def test_backup_correct_password():
     """GET /api/admin/backup with correct password should return 200 with proper structure"""
-    headers = {'x-admin-password': 'gillco2025'}
+    headers = {'x-admin-password': '<ADMIN_PASSWORD>'}
     r = requests.get(f"{BASE_URL}/admin/backup", headers=headers, timeout=30)
     
     # Check status code
@@ -206,8 +206,8 @@ def test_regression_projects():
     print(f"    Found {len(data)} projects")
 
 def test_regression_admin_login_correct():
-    """POST /api/admin/login with gillco2025 should return ok:true"""
-    payload = {'password': 'gillco2025'}
+    """POST /api/admin/login with <ADMIN_PASSWORD> should return ok:true"""
+    payload = {'password': '<ADMIN_PASSWORD>'}
     r = requests.post(f"{BASE_URL}/admin/login", json=payload, timeout=10)
     assert_eq(r.status_code, 200, "Status code should be 200")
     data = r.json()
@@ -261,7 +261,7 @@ if __name__ == '__main__':
     print("📋 TEST GROUP 4: Quick Regression Tests")
     print("-" * 80)
     test("T4.1: GET /api/projects returns 200", test_regression_projects)
-    test("T4.2: POST /api/admin/login with gillco2025 returns ok:true", test_regression_admin_login_correct)
+    test("T4.2: POST /api/admin/login with <ADMIN_PASSWORD> returns ok:true", test_regression_admin_login_correct)
     test("T4.3: POST /api/admin/login with wrong password returns 401", test_regression_admin_login_wrong)
     test("T4.4: GET /api/cron/escalate returns 200", test_regression_cron_escalate)
     

@@ -575,7 +575,7 @@ print("TEST 17: REGRESSION - POST /api/admin/login")
 print("=" * 80)
 try:
     response = requests.post(f"{API_BASE}/admin/login", 
-                            json={"password": "gillco2025"}, timeout=10)
+                            json={"password": "<ADMIN_PASSWORD>"}, timeout=10)
     data = response.json()
     
     passed = (

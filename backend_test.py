@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 
 BASE_URL = "http://localhost:3000/api"
 ADMIN_USER = "admin"
-ADMIN_PASS = "Gillco@2025Meraqui"
+ADMIN_PASS = "<ADMIN_PASSWORD>"
 
 # Track test enquiries for cleanup reporting
 test_enquiry_ids = []

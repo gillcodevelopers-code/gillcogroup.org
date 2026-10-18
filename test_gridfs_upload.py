@@ -281,7 +281,7 @@ def test_400_multipart_no_file():
 # ==================== TEST 12: Backup excludes media collections ====================
 def test_backup_excludes_media():
     """GET /api/admin/backup should NOT include 'media.files' or 'media.chunks' in collections"""
-    headers = {'x-admin-password': 'gillco2025'}
+    headers = {'x-admin-password': '<ADMIN_PASSWORD>'}
     r = requests.get(f"{API_URL}/admin/backup", headers=headers, timeout=30)
     
     assert_eq(r.status_code, 200, "Status code should be 200")
