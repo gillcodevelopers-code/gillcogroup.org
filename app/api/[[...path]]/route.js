@@ -5,7 +5,7 @@ import { sanitizeContent } from '@/lib/safeText';
 import { getDb, putMedia, getMediaMeta, openMedia, mediaBackend, dbProvider } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { NextResponse, after as runAfter } from 'next/server';
-import { notifyNewLead, runEscalation, emailConfigured, sendEmail, leadRecipients } from '@/lib/leadMailer';
+import { notifyNewLead, runEscalation, emailConfigured, sendEmail, leadRecipients, senderAddress } from '@/lib/leadMailer';
 import fs from 'fs';
 import nodePath from 'path';
 
@@ -739,6 +739,8 @@ async function handleRoute(request, { params }) {
       return cors(NextResponse.json({
         emailConfigured: emailConfigured(),
         senderConfigured: !!process.env.RESEND_FROM,
+        sender: senderAddress(),
+        adminEmail: adminCreds().email || null,
         cronSecretSet: !!process.env.CRON_SECRET,
         leadRecipients: leadRecipients(s),
       }));
@@ -752,7 +754,12 @@ async function handleRoute(request, { params }) {
         const r = await sendEmail({ to, subject: 'Gillco website — test lead alert', html: '<p>This is a test. Lead email alerts are working ✅</p>' });
         return cors(NextResponse.json({ ok: true, to, result: r }));
       } catch (err) {
-        return cors(NextResponse.json({ error: err?.message || 'send failed' }, { status: 502 }));
+        const m = String(err?.message || 'send failed');
+        const hint = /domain is not verified|not verified/i.test(m) ? 'Your sender domain is not verified yet: resend.com -> Domains -> add gillcogroup.org and add its DNS records in hPanel.'
+          : /only send testing emails|own email address/i.test(m) ? 'Resend test sender can only email your own Resend account address. Verify gillcogroup.org in Resend and set RESEND_FROM=alerts@gillcogroup.org.'
+          : /401|API key is invalid|invalid_api_key/i.test(m) ? 'The RESEND_API_KEY is wrong - create a new key at resend.com -> API Keys.'
+          : '';
+        return cors(NextResponse.json({ error: hint || m, detail: hint ? m.slice(0, 300) : undefined }, { status: 502 }));
       }
     }
     if (route === '/enquiries' && method === 'GET') {
