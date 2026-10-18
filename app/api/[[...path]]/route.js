@@ -1,4 +1,6 @@
 import { adminConfigured, checkCredentials, issueToken, getAdminSession, isAdmin, sessionCookie, clearCookie, clientIp, loginLockedFor, recordLoginFailure, recordLoginSuccess, adminCreds } from '@/lib/adminAuth';
+import { buildXlsx } from '@/lib/xlsx';
+import { sanitizeContent } from '@/lib/safeText';
 import { getDb, putMedia, getMediaMeta, openMedia, mediaBackend, dbProvider } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { NextResponse, after as runAfter } from 'next/server';
@@ -428,6 +430,13 @@ async function handleRoute(request, { params }) {
     return cors(r);
   }
 
+  // Clean every Admin CMS write (strip HTML/scripts, block javascript: links) before any route reads it
+  if (['POST', 'PUT', 'PATCH'].includes(method) && /^\/(projects|news|team|testimonials|posts|settings)(\/|$)/.test(route)
+      && (request.headers.get('content-type') || '').includes('application/json')) {
+    const readJson = request.json.bind(request);
+    request.json = async () => sanitizeContent(await readJson());
+  }
+
   try {
     const db = await connectToMongo();
     await ensureSeed(db);
@@ -444,7 +453,10 @@ async function handleRoute(request, { params }) {
         'Content-Type': meta.mime || 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000, immutable',
         'Accept-Ranges': 'bytes',
-        'Content-Disposition': `inline; filename="${String(meta.originalName || fname).replace(/[^\w.\- ]/g, '_')}"`,
+        'X-Content-Type-Options': 'nosniff',
+        // files can never run scripts, even if opened directly
+        'Content-Security-Policy': "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+        'Content-Disposition': `${/^(image\/(?!svg)|video\/|application\/pdf)/.test(meta.mime || '') ? 'inline' : 'attachment'}; filename="${String(meta.originalName || fname).replace(/[^\w.\- ]/g, '_')}"`,
       };
       if (method === 'HEAD') return new NextResponse(null, { status: 200, headers: { ...headers, 'Content-Length': String(size) } });
       const range = request.headers.get('range');
@@ -473,11 +485,38 @@ async function handleRoute(request, { params }) {
       }
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
-      const original = file.name || 'file';
-      const ext = (original.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const original = String(file.name || 'file').replace(/[^\w.\- ]/g, '_').slice(0, 120);
+      const ext = (original.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      // Only images, PDFs and videos - checked by extension AND by the file's real content
+      const ALLOWED = {
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml',
+        pdf: 'application/pdf', mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
+      };
+      if (!ALLOWED[ext]) {
+        return cors(NextResponse.json({ error: 'Only images (JPG, PNG, WEBP, GIF, AVIF, SVG), PDF and video (MP4, MOV, WEBM) files can be uploaded' }, { status: 415 }));
+      }
+      const MAX_MB = ext === 'pdf' ? 25 : ['mp4', 'm4v', 'mov', 'webm'].includes(ext) ? 50 : 15;
+      if (buffer.length > MAX_MB * 1024 * 1024) {
+        return cors(NextResponse.json({ error: `File too large - max ${MAX_MB} MB for .${ext}` }, { status: 413 }));
+      }
+      const head = buffer.subarray(0, 64);
+      const hex = head.toString('hex');
+      const ascii = head.toString('latin1');
+      const sniff = {
+        jpg: () => hex.startsWith('ffd8ff'), jpeg: () => hex.startsWith('ffd8ff'),
+        png: () => hex.startsWith('89504e470d0a1a0a'), gif: () => ascii.startsWith('GIF8'),
+        webp: () => ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP',
+        avif: () => ascii.slice(4, 8) === 'ftyp', pdf: () => ascii.startsWith('%PDF-'),
+        mp4: () => ascii.slice(4, 8) === 'ftyp', m4v: () => ascii.slice(4, 8) === 'ftyp', mov: () => ['ftyp', 'moov', 'wide', 'mdat', 'free'].includes(ascii.slice(4, 8)),
+        webm: () => hex.startsWith('1a45dfa3'),
+        svg: () => { const t = buffer.subarray(0, 4096).toString('utf8'); return /<svg[\s>]/i.test(t) && !/<script|on\w+\s*=|javascript:|<foreignObject/i.test(buffer.toString('utf8')); },
+      };
+      if (!sniff[ext]()) {
+        return cors(NextResponse.json({ error: ext === 'svg' ? 'This SVG contains scripts or is not a valid SVG' : `This file is not a real .${ext} file` }, { status: 415 }));
+      }
       const id = uuidv4();
-      const fname = `${id}.${ext || 'bin'}`;
-      const mime = file.type || 'application/octet-stream';
+      const fname = `${id}.${ext}`;
+      const mime = ALLOWED[ext];
       let url;
       if ((process.env.UPLOAD_STORAGE || 'db').toLowerCase() === 'disk') {
         // VPS / persistent disk mode
@@ -968,6 +1007,65 @@ async function handleRoute(request, { params }) {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Content-Disposition': `attachment; filename="gillco-backup-${stamp}.json"`,
+          'Cache-Control': 'no-store, private',
+        },
+      });
+    }
+
+    // ---------- ADMIN: EXPORT ENQUIRIES TO EXCEL ----------
+    if (route === '/admin/enquiries.xlsx' && method === 'GET') {
+      const url = new URL(request.url);
+      const want = (url.searchParams.get('status') || 'all').toLowerCase();
+      const site = await db.collection('settings').findOne({ id: 'site' }).catch(() => null);
+      const overflowMin = Number(site?.leadOverflow?.minutes) || 15;
+      const now = Date.now();
+      const statusOf = (e) => {
+        if (e.claimed) return 'Claimed';
+        if (e.escalated) return 'Escalated';
+        if ((now - new Date(e.createdAt).getTime()) / 60000 > overflowMin) return 'Overdue';
+        return 'New';
+      };
+      let rows = (await db.collection('enquiries').find({}).sort({ createdAt: -1 }).toArray()).map(e => ({ ...e, _status: statusOf(e) }));
+      const overdue = (e) => !e.claimed && (now - new Date(e.createdAt).getTime()) / 60000 > overflowMin;
+      const FILTERS = { // same rules as the Admin -> Enquiries filter buttons
+        new: e => !e.claimed && !overdue(e) && !e.escalated,
+        overdue: e => overdue(e),
+        claimed: e => Boolean(e.claimed),
+        escalated: e => Boolean(e.escalated),
+      };
+      if (FILTERS[want]) rows = rows.filter(FILTERS[want]);
+      const yesNo = (v) => (v === true ? 'Yes' : v === false ? 'No' : '');
+      const titleCase = (v) => (v ? String(v).replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '');
+      const xlsx = buildXlsx({
+        sheetName: 'Enquiries',
+        columns: [
+          { header: 'Received', key: 'createdAt', type: 'date', width: 18 },
+          { header: 'Status', key: '_status', width: 11 },
+          { header: 'Name', key: 'name', width: 22 },
+          { header: 'Phone', key: 'phone', width: 16 },
+          { header: 'Email', key: 'email', width: 28 },
+          { header: 'Property Type', key: 'propertyType', width: 16 },
+          { header: 'Budget', key: 'budget', width: 16 },
+          { header: 'Project', value: e => e.projectName || '', width: 22 },
+          { header: 'Enquiry Type', value: e => titleCase(e.type), width: 14 },
+          { header: 'Message', key: 'message', width: 40, wrap: true },
+          { header: 'Assigned To', value: e => e.routedTo?.name || e.routedTo || '', width: 18 },
+          { header: 'Claimed By', value: e => e.claimedBy?.name || e.claimedBy || '', width: 16 },
+          { header: 'Claimed At', key: 'claimedAt', type: 'date', width: 18 },
+          { header: 'Escalated At', key: 'escalatedAt', type: 'date', width: 18 },
+          { header: 'Consent', value: e => yesNo(e.consent), width: 9 },
+          { header: 'Source', value: e => [e.utm?.source, e.utm?.medium, e.utm?.campaign].filter(Boolean).join(' / '), width: 22 },
+          { header: 'Lead ID', key: 'id', width: 38 },
+        ],
+        rows,
+      });
+      const stamp = new Date(now + 330 * 60000).toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+      return new NextResponse(xlsx, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="gillco-enquiries-${want}-${stamp}.xlsx"`,
+          'Content-Length': String(xlsx.length),
           'Cache-Control': 'no-store, private',
         },
       });

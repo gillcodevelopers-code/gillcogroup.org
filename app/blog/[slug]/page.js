@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ShareButtons from './ShareButtons';
+import { mdInline } from '@/lib/safeText';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,10 +61,7 @@ function renderBody(text) {
   if (!text) return null;
   const paragraphs = String(text).split(/\n{2,}/);
   return paragraphs.map((para, idx) => {
-    const withBold = para.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    const withItalic = withBold.replace(/(^|[^\*])\*(?!\s)([^\*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
-    const withLinks = withItalic.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-emerald-700 underline">$1</a>');
-    const withBr = withLinks.replace(/\n/g, '<br />');
+    const withBr = para.split('\n').map(l => mdInline(l, 'text-emerald-700 underline')).join('<br />');
     return <p key={idx} className="mb-5 text-slate-700 leading-relaxed text-lg" dangerouslySetInnerHTML={{ __html: withBr }} />;
   });
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { trackEvent } from '@/lib/analytics';
+import { mdInline } from '@/lib/safeText';
 import {
   Phone, Mail, MapPin, MessageCircle, Menu, X, ChevronLeft, ChevronRight,
   Search, ArrowRight, Award, Building2, Users, LandPlot, Home as HomeIcon,
@@ -2463,11 +2464,7 @@ function renderNewsBody(text, dark = false) {
   paragraphs.forEach((para, pi) => {
     const lines = para.split('\n');
     const bullets = lines.every(l => /^\s*[-*]\s+/.test(l));
-    const fmt = (s) =>
-      s
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/(^|[^\*])\*(?!\s)([^\*\n]+?)\*(?!\*)/g, '$1<em>$2</em>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="${dark ? 'text-amber-300' : 'text-emerald-700'} underline">$1</a>`);
+    const fmt = (s) => mdInline(s, `${dark ? 'text-amber-300' : 'text-emerald-700'} underline`);
     if (bullets && lines.length > 1) {
       nodes.push(
         <ul key={pi} className={`list-disc pl-5 space-y-1 my-3 ${dark ? 'text-white/80' : 'text-slate-700'}`}>
@@ -2477,7 +2474,7 @@ function renderNewsBody(text, dark = false) {
         </ul>
       );
     } else {
-      const html = fmt(para).replace(/\n/g, '<br />');
+      const html = para.split('\n').map(fmt).join('<br />');
       nodes.push(
         <p
           key={pi}
@@ -3706,6 +3703,24 @@ function EnquiriesPanel({ settings }) {
     return (now - created) / 60000 > overflowMin;
   };
 
+  const [exporting, setExporting] = useState(false);
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/admin/enquiries.xlsx?status=${encodeURIComponent(filter)}`, { cache: 'no-store' });
+      if (res.status === 401) { window.dispatchEvent(new Event('gillco:admin-logout')); throw new Error('Session expired — please log in again'); }
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'gillco-enquiries.xlsx';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success('Excel file downloaded');
+    } catch (e) { toast.error(e?.message || 'Export failed'); }
+    setExporting(false);
+  };
+
   const claim = async (e) => {
     try {
       await api(`/enquiries/${e.id}/claim`, { method: 'POST', body: JSON.stringify({ by: 'admin' }) });
@@ -3784,7 +3799,10 @@ function EnquiriesPanel({ settings }) {
               {label} <span className="opacity-70">({count})</span>
             </button>
           ))}
-          <button onClick={load} className="ml-auto px-3 py-1.5 border border-slate-300 rounded-full text-xs">Refresh</button>
+          <button onClick={exportExcel} disabled={exporting} data-testid="export-excel-btn" title={filter === 'all' ? 'Download all enquiries' : `Download the ${filter} enquiries`} className="ml-auto px-3 py-1.5 bg-gillco-green text-white rounded-full text-xs font-medium inline-flex items-center gap-1.5 disabled:opacity-60">
+            <Download className="w-3.5 h-3.5" /> {exporting ? 'Preparing…' : `Export to Excel${filter !== 'all' ? ` (${filter})` : ''}`}
+          </button>
+          <button onClick={load} className="px-3 py-1.5 border border-slate-300 rounded-full text-xs">Refresh</button>
         </div>
 
         {loading ? (
