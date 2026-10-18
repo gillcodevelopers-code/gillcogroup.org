@@ -22,6 +22,7 @@ The site is a **Next.js** app. It can now store everything in **Hostinger's own 
 | `MYSQL_PASSWORD` | the password from step 1 |
 | `ADMIN_USERNAME` | the Admin CMS username you want, e.g. `gillcoadmin` |
 | `ADMIN_PASSWORD` | a strong Admin CMS password (12+ characters) |
+| `ADMIN_EMAIL` | `support@gillcogroup.org`. You can log in with this email **or** the username, using the same password |
 | `NEXT_PUBLIC_SITE_URL` | `https://gillcogroup.org` |
 | `NEXT_PUBLIC_BASE_URL` | `https://gillcogroup.org` |
 | `CORS_ORIGINS` | `https://gillcogroup.org,https://www.gillcogroup.org` |

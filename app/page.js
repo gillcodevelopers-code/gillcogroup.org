@@ -2804,7 +2804,7 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
             <h1 className="font-serif text-3xl text-gillco-green text-center mt-4">Admin Login</h1>
             <p className="text-center text-sm text-slate-500 mt-2">Content management for Gillco Group.</p>
             <form onSubmit={login} className="mt-6 space-y-3">
-              <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" autoComplete="username" required data-testid="admin-username" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="Email or username" autoComplete="username" required data-testid="admin-username" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
               <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Password" autoComplete="current-password" required data-testid="admin-password" className="w-full px-4 py-3 border border-slate-200 rounded-lg" />
               {loginError && <p className="text-sm text-red-600 text-center" data-testid="admin-login-error">{loginError}</p>}
               <button disabled={loggingIn} data-testid="admin-login-btn" className="w-full py-3 gradient-emerald text-white rounded-full font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60"><LogIn className="w-4 h-4" /> {loggingIn ? 'Signing in…' : 'Sign In'}</button>
