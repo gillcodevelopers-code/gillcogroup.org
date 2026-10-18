@@ -973,6 +973,68 @@ async function handleRoute(request, { params }) {
       });
     }
 
+    // ---------- ADMIN IMPORT FROM MONGODB (copy live Atlas data into the current MySQL / Supabase DB) ----------
+    if (route === '/admin/import-mongo' && method === 'POST') {
+      if (!db.provider || db.provider === 'mongo') {
+        return cors(NextResponse.json({ error: 'The site is still running on MongoDB. Set the MySQL settings on Hostinger first, then import.' }, { status: 400 }));
+      }
+      const body = await request.json().catch(() => ({}));
+      const mongoUrl = String(body.mongoUrl || '').trim();
+      const dbName = String(body.dbName || '').trim();
+      const dryRun = Boolean(body.dryRun);
+      if (!/^mongodb(\+srv)?:\/\//i.test(mongoUrl)) return cors(NextResponse.json({ error: 'The link must start with mongodb+srv:// or mongodb://' }, { status: 400 }));
+      if (!/^[A-Za-z0-9_-]{1,63}$/.test(dbName)) return cors(NextResponse.json({ error: 'Database name must be just the name, e.g. gillco (no dots or spaces)' }, { status: 400 }));
+      const { MongoClient, GridFSBucket } = await import('mongodb');
+      let client;
+      try {
+        client = await new MongoClient(mongoUrl, { serverSelectionTimeoutMS: 12000, connectTimeoutMS: 12000 }).connect();
+      } catch (err) {
+        return cors(NextResponse.json({ error: `Could not connect to MongoDB: ${err?.message || err}. Check the link/password and that Atlas Network Access allows 0.0.0.0/0.` }, { status: 400 }));
+      }
+      try {
+        const src = client.db(dbName);
+        const names = (await src.listCollections({}, { nameOnly: true }).toArray())
+          .map(c => c.name).filter(n => /^[A-Za-z0-9_-]{1,60}$/.test(n) && !n.startsWith('__restore')).sort();
+        if (!names.length) return cors(NextResponse.json({ error: `Database "${dbName}" has no collections - check the database name (Atlas -> Browse Collections)` }, { status: 400 }));
+        if (!names.includes('projects') && !names.includes('settings')) return cors(NextResponse.json({ error: `Database "${dbName}" has no projects/settings - is this the right database?` }, { status: 400 }));
+        const collections = {};
+        for (const name of names) {
+          const docs = (await src.collection(name).find({}).toArray()).map(d => {
+            const { _id, ...rest } = d;
+            if (rest.id === undefined || rest.id === null) rest.id = String(_id);
+            return JSON.parse(JSON.stringify(rest));
+          });
+          if (!dryRun) {
+            const tmp = db.collection(`__restore_${name}`);
+            await tmp.drop().catch(() => {});
+            if (docs.length) await tmp.insertMany(docs, { ordered: false });
+            await tmp.rename(name, { dropTarget: true });
+          }
+          collections[name] = { source: docs.length, copied: dryRun ? null : await db.collection(name).countDocuments() };
+        }
+        const files = await src.collection('media.files').find({}).toArray().catch(() => []);
+        const media = { source: files.length, copied: 0, bytes: 0, failed: [] };
+        const gfs = new GridFSBucket(src, { bucketName: 'media' });
+        for (const f of files) {
+          media.bytes += Number(f.length || 0);
+          if (dryRun) continue;
+          try {
+            const chunks = [];
+            await new Promise((res, rej) => gfs.openDownloadStream(f._id).on('data', c => chunks.push(c)).on('end', res).on('error', rej));
+            await putMedia(db, { id: String(f._id), fname: f.filename, mime: f.metadata?.mime || 'application/octet-stream', originalName: f.metadata?.originalName || f.filename, buffer: Buffer.concat(chunks) });
+            media.copied++;
+          } catch (err) { media.failed.push(`${f.filename}: ${err?.message || err}`); }
+        }
+        const ok = dryRun || (Object.values(collections).every(c => c.source === c.copied) && media.failed.length === 0);
+        if (!dryRun) seeded = true;
+        const r = NextResponse.json({ ok, dryRun, target: db.provider, collections, media });
+        r.headers.set('Cache-Control', 'no-store');
+        return cors(r);
+      } finally {
+        await client.close().catch(() => {});
+      }
+    }
+
     // ---------- ADMIN RESTORE (replace collections from a backup file) ----------
     if (route === '/admin/restore' && method === 'POST') {
       let payload;

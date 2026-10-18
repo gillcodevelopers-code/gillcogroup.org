@@ -386,17 +386,22 @@ function App() {
 
   /* -------- popup enquiry (configurable) -------- */
   const popupRef = useRef(false);
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; if (view === 'admin') setShowEnquiry(prev => (enquiryPrefillRef.current?.type === 'popup' ? false : prev)); }, [view]);
+  const enquiryPrefillRef = useRef(null);
   useEffect(() => {
     if (!settings?.popup?.enabled) return;
     if (popupRef.current) return;
+    if (view === 'admin') return; // never interrupt the Admin CMS
     const cookieName = 'gillco_popup_seen';
     if (typeof document !== 'undefined' && document.cookie.includes(`${cookieName}=1`)) {
       popupRef.current = true;
       return;
     }
     const t = setTimeout(() => {
-      if (popupRef.current) return;
+      if (popupRef.current || viewRef.current === 'admin') return;
       popupRef.current = true;
+      enquiryPrefillRef.current = { type: 'popup' };
       setShowEnquiry(true);
       setEnquiryPrefill({ type: 'popup' });
       const hrs = settings.popup.cookieHours || 24;
@@ -405,7 +410,7 @@ function App() {
       document.cookie = `${cookieName}=1; expires=${d.toUTCString()}; path=/`;
     }, (settings.popup.delaySeconds || 6) * 1000);
     return () => clearTimeout(t);
-  }, [settings]);
+  }, [settings, view]);
 
   const filtered = useMemo(() => {
     return projects.filter(p => {
@@ -2738,6 +2743,27 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
     setRestoring(false);
   };
 
+  // ---- Import live data from MongoDB Atlas into the current (MySQL) database
+  const [importOpen, setImportOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importDb, setImportDb] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [importConfirm, setImportConfirm] = useState('');
+  const runImport = async (dryRun) => {
+    setImportBusy(true); if (dryRun) setImportResult(null);
+    try {
+      if (!dryRun) await downloadBackup(); // safety copy of what is in MySQL now
+      const r = await api('/admin/import-mongo', { method: 'POST', body: JSON.stringify({ mongoUrl: importUrl.trim(), dbName: importDb.trim(), dryRun }) });
+      setImportResult(r);
+      if (!dryRun) {
+        if (r.ok) { toast.success('Live data imported — reloading…'); setTimeout(() => window.location.reload(), 2500); }
+        else toast.error('Import finished with problems — see the list');
+      }
+    } catch (e) { toast.error(e?.message || 'Import failed'); }
+    setImportBusy(false);
+  };
+
   const saveProject = async (p) => {
     try {
       const updated = await api(`/projects/${p.id}`, { method: 'PUT', body: JSON.stringify(p) });
@@ -2821,9 +2847,49 @@ function AdminView({ projects, setProjects, settings, setSettings, news, setNews
             <button onClick={() => restoreInputRef.current?.click()} data-testid="admin-restore-btn" className="px-4 py-2 border border-gillco-green text-gillco-green rounded-full text-sm inline-flex items-center gap-2 hover:bg-white">
               <Clock className="w-4 h-4" /> Restore Backup
             </button>
+            <button onClick={() => { setImportOpen(true); setImportResult(null); setImportConfirm(''); }} data-testid="admin-import-btn" className="px-4 py-2 border border-gillco-green text-gillco-green rounded-full text-sm inline-flex items-center gap-2 hover:bg-white">
+              <Download className="w-4 h-4 rotate-180" /> Import from MongoDB
+            </button>
             <button onClick={logout} data-testid="admin-logout-btn" title={adminUser ? `Signed in as ${adminUser}` : undefined} className="px-4 py-2 border border-slate-300 rounded-full text-sm inline-flex items-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
           </div>
         </div>
+
+        {importOpen && (
+          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" data-testid="import-modal">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <h3 className="font-serif text-2xl text-gillco-green">Import live data from MongoDB</h3>
+              <p className="text-sm text-slate-600 mt-1">Copies all projects, leads, settings, blog, team, testimonials, history <b>and uploaded images/PDFs</b> from MongoDB Atlas into this site's database. The link is used once and is not saved.</p>
+              <label className="block text-xs text-slate-500 mt-4">MongoDB Atlas connection link</label>
+              <input value={importUrl} onChange={e => setImportUrl(e.target.value)} placeholder="mongodb+srv://user:password@cluster0.xxxx.mongodb.net/" data-testid="import-url" autoComplete="off" className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg outline-none focus:border-gillco-green text-sm" />
+              <label className="block text-xs text-slate-500 mt-3">Database name (Atlas → Browse Collections)</label>
+              <input value={importDb} onChange={e => setImportDb(e.target.value)} placeholder="gillco" data-testid="import-db" autoComplete="off" className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg outline-none focus:border-gillco-green text-sm" />
+              {importResult && (
+                <div className="mt-4 text-sm" data-testid="import-result">
+                  <p className="font-semibold text-gillco-green mb-2">{importResult.dryRun ? 'Found in MongoDB:' : (importResult.ok ? 'Imported successfully:' : 'Imported with problems:')}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(importResult.collections || {}).map(([k, v]) => (
+                      <div key={k} className="flex justify-between bg-gillco-cream rounded-lg px-3 py-1.5"><span className="capitalize">{k}</span><b>{importResult.dryRun ? v.source : `${v.copied}/${v.source}`}</b></div>
+                    ))}
+                    <div className="flex justify-between bg-gillco-cream rounded-lg px-3 py-1.5"><span>Images &amp; files</span><b>{importResult.dryRun ? importResult.media?.source : `${importResult.media?.copied}/${importResult.media?.source}`}</b></div>
+                  </div>
+                  {importResult.media?.failed?.length > 0 && <p className="text-xs text-red-600 mt-2">{importResult.media.failed.slice(0, 3).join(' · ')}</p>}
+                </div>
+              )}
+              {importResult?.dryRun && (
+                <>
+                  <div className="mt-4 bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg p-3">Everything currently in this site's database will be <b>replaced</b> by the data above. A backup of the current data downloads first.</div>
+                  <label className="block text-xs text-slate-500 mt-3">Type <b>IMPORT</b> to confirm</label>
+                  <input value={importConfirm} onChange={e => setImportConfirm(e.target.value)} data-testid="import-confirm-input" className="w-full mt-1 px-4 py-2.5 border border-slate-200 rounded-lg outline-none focus:border-gillco-green" />
+                </>
+              )}
+              <div className="mt-5 flex justify-end gap-2 flex-wrap">
+                <button onClick={() => setImportOpen(false)} disabled={importBusy} className="px-4 py-2 border border-slate-300 rounded-full text-sm">Close</button>
+                <button onClick={() => runImport(true)} disabled={importBusy || !importUrl || !importDb} data-testid="import-check-btn" className="px-4 py-2 border border-gillco-green text-gillco-green rounded-full text-sm font-semibold disabled:opacity-40">{importBusy && !importResult?.dryRun ? 'Checking…' : '1. Check'}</button>
+                <button onClick={() => runImport(false)} disabled={importBusy || !importResult?.dryRun || importConfirm.trim().toUpperCase() !== 'IMPORT'} data-testid="import-run-btn" className="px-5 py-2 bg-red-600 text-white rounded-full text-sm font-semibold disabled:opacity-40">{importBusy && importResult?.dryRun ? 'Importing…' : '2. Import now'}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {restoreFile && (
           <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" data-testid="restore-modal">

@@ -38,7 +38,15 @@ Click **Save**, then **Redeploy**. The site creates its tables (`app_docs`, `app
 An empty database starts with the built-in sample projects. To bring in your real data, do step 4.
 
 ## 4. Bring your existing data into MySQL (pick one)
-**A. From a backup file (easiest):** if you have a `gillco-backup-….json` from **Admin → Download Backup**, log in to the new site, choose **Restore Backup**, pick the file and type RESTORE. Uploaded images aren't inside that file; re-upload them in the Admin CMS.
+**⭐ Easiest: the Import button (data + images, about 1 minute):**
+1. MongoDB Atlas → **Network Access**: make sure `0.0.0.0/0` is allowed. It already is if Vercel worked.
+2. Open the new site → **Admin CMS** → log in → **Import from MongoDB**.
+3. Paste your Atlas link (`mongodb+srv://user:password@cluster0.xxxx.mongodb.net/`) and the database name (Atlas → **Browse Collections**, e.g. `gillco`).
+4. Click **1. Check**. It shows how many projects, leads, posts and images it found.
+5. Type **IMPORT** and click **2. Import now**. A backup of the current data downloads first, then everything is copied and the page reloads with your real content.
+   The link is used once and never saved. You don't need the Remote MySQL setting.
+
+**A. From a backup file:** if you have a `gillco-backup-….json` from **Admin → Download Backup**, log in to the new site, choose **Restore Backup**, pick the file and type RESTORE. Uploaded images aren't inside that file; re-upload them in the Admin CMS.
 
 **B. Full copy from MongoDB Atlas (data and images):**
 1. hPanel → **Databases → Remote MySQL** → add the IP address of the computer running the copy, or ask your developer for theirs. Select your database.
